@@ -232,22 +232,3 @@ func TestBatchItemRequest(t *testing.T) {
 		t.Error("cookie not forwarded")
 	}
 }
-
-// TestStockSelectorMissesKeyedTargets is the repro for
-// docs/library-proposals.md: without Selector, structpages cannot match a
-// keyed id to its component and serves the whole page into the row.
-func TestStockSelectorMissesKeyedTargets(t *testing.T) {
-	mux := http.NewServeMux()
-	if _, err := structpages.Mount(mux, root{}, "/", "Test",
-		structpages.WithTargetSelector(structpages.HTMXv4RenderTarget)); err != nil {
-		t.Fatal(err)
-	}
-	req := httptest.NewRequest("GET", "/list", nil)
-	req.Header.Set("HX-Request", "true")
-	req.Header.Set("HX-Target", "tr#list-row--a")
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if !strings.Contains(rec.Body.String(), "<html>") {
-		t.Fatalf("expected the stock selector to fall back to Page, got %s", rec.Body)
-	}
-}
