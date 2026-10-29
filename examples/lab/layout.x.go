@@ -12,14 +12,14 @@ import (
 )
 
 //line layout.gsx:8:1
-func Layout(title string, panel gsx.Node, children gsx.Node, s *store) _gsxrt.Node {
+func Layout(title string, panel gsx.Node, children gsx.Node, s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-		return _gsxrenderLayout(ctx, _gsxgw, title, panel, children, s)
+		return _gsxrenderLayout(ctx, _gsxgw, title, panel, children, s, h)
 	})
 }
 
-func _gsxrenderLayout(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer, title string, panel gsx.Node, children gsx.Node, s *store) error {
+func _gsxrenderLayout(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer, title string, panel gsx.Node, children gsx.Node, s *store, h *hub) error {
 	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
 		return _gsxerr
 	}
@@ -61,7 +61,9 @@ func _gsxrenderLayout(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer, title string, 
 //line layout.gsx:23:3
 	_gsxgw.S("<body class=\"bg-stone-50 text-stone-900\">")
 //line layout.gsx:24:4
-	_gsxgw.S("<div id=\"stream\" hx-sse:connect=\"/events\"")
+	_gsxgw.S("<div id=\"stream\" hx-sse:connect=\"/events?since=")
+	_gsxgw.AttrValue(string( /*line layout.gsx:24:54*/ h.Since()))
+	_gsxgw.S("\"")
 	_gsxgw.BoolAttr("hidden", true)
 	_gsxgw.S("></div>")
 //line layout.gsx:25:4

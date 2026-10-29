@@ -12,7 +12,10 @@ import (
 // ServeSSE streams viewer's frames until the request ends. It opens with a
 // `: connected` comment and a `resync` event, because frames published
 // between the page render and this connection are lost; the dispatcher
-// answers resync by refetching every live element.
+// answers resync by refetching every live element. When the request carries
+// ?since=<Since at render> and nothing was published since, the resync is
+// skipped. The query stays the same on reconnect, so a reconnect after
+// anything was published still resyncs.
 //
 // A host with a durable source (an outbox with ids, replayed from
 // Last-Event-ID) writes its own handler instead: replay its rows with
@@ -37,8 +40,9 @@ func (h *Hub[V]) ServeSSE(w http.ResponseWriter, r *http.Request, viewer V) erro
 		return rc.Flush()
 	}
 
+	current := r.URL.Query().Get("since") == h.Since()
 	if err := write(func() error {
-		if _, err := io.WriteString(w, ": connected\n\n"); err != nil {
+		if _, err := io.WriteString(w, ": connected\n\n"); err != nil || current {
 			return err
 		}
 		return WriteEvent(w, "resync", "", "{}")

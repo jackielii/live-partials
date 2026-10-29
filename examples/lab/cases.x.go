@@ -20,13 +20,13 @@ import (
 type homePage struct{}
 
 //line cases.gsx:14:1
-func (p homePage) Page(s *store) _gsxrt.Node {
+func (p homePage) Page(s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 //line cases.gsx:15:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Six cases", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:15:41
+//line cases.gsx:15:47
 			_gsxgw.S("<p class=\"text-stone-600\">Open a case.</p>")
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
@@ -34,7 +34,7 @@ func (p homePage) Page(s *store) _gsxrt.Node {
 //line cases.gsx:16:3
 			_gsxgw.S("<p class=\"max-w-prose\">Each case is modelled on a real screen. The amber panel changes data as another user would, the server publishes a frame on the stream, and the page updates itself. The meter counts what this tab spent.</p>")
 			return _gsxgw.Err()
-		}), /*line cases.gsx:15:31*/ s))
+		}), /*line cases.gsx:15:31*/ s /*line cases.gsx:15:37*/, h))
 		return _gsxgw.Err()
 	})
 }
@@ -119,13 +119,13 @@ func (p seriesPage) Props(r *http.Request, s *store, t structpages.RenderTarget)
 }
 
 //line cases.gsx:67:1
-func (p seriesPage) Page(props seriesProps, s *store) _gsxrt.Node {
+func (p seriesPage) Page(props seriesProps, s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 //line cases.gsx:68:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Series catalog", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:68:46
+//line cases.gsx:68:52
 			_gsxgw.NodeResult(_gsxrenderseriesPanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
@@ -133,7 +133,7 @@ func (p seriesPage) Page(props seriesProps, s *store) _gsxrt.Node {
 //line cases.gsx:69:3
 			_gsxgw.Node(ctx, p.Content( /*line cases.gsx:69:21*/ props))
 			return _gsxgw.Err()
-		}), /*line cases.gsx:68:36*/ s))
+		}), /*line cases.gsx:68:36*/ s /*line cases.gsx:68:42*/, h))
 		return _gsxgw.Err()
 	})
 }
@@ -328,13 +328,13 @@ func (p peoplePage) Props(r *http.Request, s *store, t structpages.RenderTarget)
 }
 
 //line cases.gsx:127:1
-func (p peoplePage) Page(s *store) _gsxrt.Node {
+func (p peoplePage) Page(s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 //line cases.gsx:128:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "People", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:128:38
+//line cases.gsx:128:44
 			_gsxgw.NodeResult(_gsxrenderpeoplePanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
@@ -369,7 +369,7 @@ func (p peoplePage) Page(s *store) _gsxrt.Node {
 			}
 			_gsxgw.S("</tbody></table>")
 			return _gsxgw.Err()
-		}), /*line cases.gsx:128:28*/ s))
+		}), /*line cases.gsx:128:28*/ s /*line cases.gsx:128:34*/, h))
 		return _gsxgw.Err()
 	})
 }

@@ -11,8 +11,8 @@ import (
 
 type homePage struct{}
 
-component (p homePage) Page(s *store) {
-	<Layout title="Six cases" s={s} panel={<p class="text-stone-600">Open a case.</p>}>
+component (p homePage) Page(s *store, h *hub) {
+	<Layout title="Six cases" s={s} h={h} panel={<p class="text-stone-600">Open a case.</p>}>
 		<p class="max-w-prose">
 			Each case is modelled on a real screen. The amber panel changes data as another user would, the
 			server publishes a frame on the stream, and the page updates itself. The meter counts what this tab
@@ -64,8 +64,8 @@ func (p seriesPage) Props(r *http.Request, s *store, t structpages.RenderTarget)
 	return seriesProps{rows, sum}, rows, series{}, sum, nil
 }
 
-component (p seriesPage) Page(props seriesProps, s *store) {
-	<Layout title="Series catalog" s={s} panel={<seriesPanel/>}>
+component (p seriesPage) Page(props seriesProps, s *store, h *hub) {
+	<Layout title="Series catalog" s={s} h={h} panel={<seriesPanel/>}>
 		<p.Content props={props}/>
 	</Layout>
 }
@@ -124,8 +124,8 @@ func (p peoplePage) Props(r *http.Request, s *store, t structpages.RenderTarget)
 	return person{}, nil
 }
 
-component (p peoplePage) Page(s *store) {
-	<Layout title="People" s={s} panel={<peoplePanel/>}>
+component (p peoplePage) Page(s *store, h *hub) {
+	<Layout title="People" s={s} h={h} panel={<peoplePanel/>}>
 		<div class="flex gap-4">
 			{ for _, id := range []string{"p1", "p2"} {
 				{ if pr, err := s.Person(id); err == nil {

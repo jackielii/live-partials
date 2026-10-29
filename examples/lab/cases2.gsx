@@ -18,8 +18,8 @@ func (p draftsPage) Props(r *http.Request, s *store, t structpages.RenderTarget)
 	return draftRow{}, nil
 }
 
-component (p draftsPage) Page(s *store) {
-	<Layout title="Report draft" s={s} panel={<draftsPanel/>}>
+component (p draftsPage) Page(s *store, h *hub) {
+	<Layout title="Report draft" s={s} h={h} panel={<draftsPanel/>}>
 		<p class="text-sm text-stone-600">Edit a value and leave it unsaved; changes by others to that row warn instead of overwriting.</p>
 		<div class="flex flex-col gap-2" data-testid="drafts">
 			{ for _, d := range s.Drafts() {
@@ -45,7 +45,7 @@ component (p draftsPage) Row(d draftRow) {
 			<span class="text-xs text-stone-500">last saved by { d.By }</span>
 		} }
 		<p data-live-stale hidden class="text-xs text-amber-800">
-			Changed by someone else ·
+			Changed by someone else ·{" "}
 			<button type="button" class="underline" data-live-refresh>Refresh</button>
 		</p>
 	</form>
@@ -86,8 +86,8 @@ func (p filesPage) Props(r *http.Request, s *store, t structpages.RenderTarget) 
 	return files, file{}, fileCount(len(files)), nil
 }
 
-component (p filesPage) Page(files []file, n fileCount, s *store) {
-	<Layout title="Files" s={s} panel={<filesPanel/>}>
+component (p filesPage) Page(files []file, n fileCount, s *store, h *hub) {
+	<Layout title="Files" s={s} h={h} panel={<filesPanel/>}>
 		<p.Count n={n}/>
 		<p.List files={files}/>
 	</Layout>
@@ -136,8 +136,8 @@ func (p burstPage) Props(r *http.Request, s *store, t structpages.RenderTarget) 
 	return s.Burst(), burstRow{}, nil
 }
 
-component (p burstPage) Page(rows []burstRow, s *store) {
-	<Layout title="Burst" s={s} panel={<SimButton action="burst" id="">50 rows change within 100 ms</SimButton>}>
+component (p burstPage) Page(rows []burstRow, s *store, h *hub) {
+	<Layout title="Burst" s={s} h={h} panel={<SimButton action="burst" id="">50 rows change within 100 ms</SimButton>}>
 		<table class="w-full text-sm" data-testid="burst">
 			<p.Rows rows={rows}/>
 		</table>
@@ -170,8 +170,8 @@ func (p jobsPage) Props(r *http.Request, s *store, t structpages.RenderTarget) (
 	return job{}, nil
 }
 
-component (p jobsPage) Page(s *store) {
-	<Layout title="Jobs" s={s} panel={<jobsPanel/>}>
+component (p jobsPage) Page(s *store, h *hub) {
+	<Layout title="Jobs" s={s} h={h} panel={<jobsPanel/>}>
 		<div class="flex flex-col gap-3">
 			{ for _, j := range s.Jobs() {
 				<p.Card j={j}/>

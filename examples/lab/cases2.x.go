@@ -28,13 +28,13 @@ func (p draftsPage) Props(r *http.Request, s *store, t structpages.RenderTarget)
 }
 
 //line cases2.gsx:21:1
-func (p draftsPage) Page(s *store) _gsxrt.Node {
+func (p draftsPage) Page(s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 //line cases2.gsx:22:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Report draft", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:22:44
+//line cases2.gsx:22:50
 			_gsxgw.NodeResult(_gsxrenderdraftsPanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
@@ -50,7 +50,7 @@ func (p draftsPage) Page(s *store) _gsxrt.Node {
 			}
 			_gsxgw.S("</div>")
 			return _gsxgw.Err()
-		}), /*line cases2.gsx:22:34*/ s))
+		}), /*line cases2.gsx:22:34*/ s /*line cases2.gsx:22:40*/, h))
 		return _gsxgw.Err()
 	})
 }
@@ -111,6 +111,8 @@ func (p draftsPage) Row(d draftRow) _gsxrt.Node {
 		_gsxgw.BoolAttr("data-live-stale", true)
 		_gsxgw.BoolAttr("hidden", true)
 		_gsxgw.S(" class=\"text-xs text-amber-800\">Changed by someone else ·")
+//line cases2.gsx:48:30
+		_gsxgw.Text(string( /*line cases2.gsx:48:31*/ " "))
 //line cases2.gsx:49:4
 		_gsxgw.S("<button type=\"button\" class=\"underline\"")
 		_gsxgw.BoolAttr("data-live-refresh", true)
@@ -179,13 +181,13 @@ func (p filesPage) Props(r *http.Request, s *store, t structpages.RenderTarget) 
 }
 
 //line cases2.gsx:89:1
-func (p filesPage) Page(files []file, n fileCount, s *store) _gsxrt.Node {
+func (p filesPage) Page(files []file, n fileCount, s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 //line cases2.gsx:90:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Files", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:90:37
+//line cases2.gsx:90:43
 			_gsxgw.NodeResult(_gsxrenderfilesPanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
@@ -195,7 +197,7 @@ func (p filesPage) Page(files []file, n fileCount, s *store) _gsxrt.Node {
 //line cases2.gsx:92:3
 			_gsxgw.Node(ctx, p.List( /*line cases2.gsx:92:18*/ files))
 			return _gsxgw.Err()
-		}), /*line cases2.gsx:90:27*/ s))
+		}), /*line cases2.gsx:90:27*/ s /*line cases2.gsx:90:33*/, h))
 		return _gsxgw.Err()
 	})
 }
@@ -343,13 +345,13 @@ func (p burstPage) Props(r *http.Request, s *store, t structpages.RenderTarget) 
 }
 
 //line cases2.gsx:139:1
-func (p burstPage) Page(rows []burstRow, s *store) _gsxrt.Node {
+func (p burstPage) Page(rows []burstRow, s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 //line cases2.gsx:140:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Burst", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:140:37
+//line cases2.gsx:140:43
 			_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "burst", "", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 				_gsxgw := _gsxrt.W(_gsxw)
 				_gsxgw.S("50 rows change within 100 ms")
@@ -364,7 +366,7 @@ func (p burstPage) Page(rows []burstRow, s *store) _gsxrt.Node {
 			_gsxgw.Node(ctx, p.Rows( /*line cases2.gsx:142:18*/ rows))
 			_gsxgw.S("</table>")
 			return _gsxgw.Err()
-		}), /*line cases2.gsx:140:27*/ s))
+		}), /*line cases2.gsx:140:27*/ s /*line cases2.gsx:140:33*/, h))
 		return _gsxgw.Err()
 	})
 }
@@ -447,13 +449,13 @@ func (p jobsPage) Props(r *http.Request, s *store, t structpages.RenderTarget) (
 }
 
 //line cases2.gsx:173:1
-func (p jobsPage) Page(s *store) _gsxrt.Node {
+func (p jobsPage) Page(s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 //line cases2.gsx:174:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Jobs", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:174:36
+//line cases2.gsx:174:42
 			_gsxgw.NodeResult(_gsxrenderjobsPanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
@@ -467,7 +469,7 @@ func (p jobsPage) Page(s *store) _gsxrt.Node {
 			}
 			_gsxgw.S("</div>")
 			return _gsxgw.Err()
-		}), /*line cases2.gsx:174:26*/ s))
+		}), /*line cases2.gsx:174:26*/ s /*line cases2.gsx:174:32*/, h))
 		return _gsxgw.Err()
 	})
 }

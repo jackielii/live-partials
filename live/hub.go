@@ -9,8 +9,11 @@ package live
 
 import (
 	"context"
+	"crypto/rand"
 	"slices"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -72,18 +75,29 @@ func (c Config) withDefaults() Config {
 // nothing: a frame published while a tab is disconnected is gone, and the
 // tab's resync on reconnect covers it.
 type Hub[V any] struct {
-	cfg  Config
-	mu   sync.Mutex
-	subs map[*Subscription]V
+	cfg   Config
+	epoch string
+	seq   atomic.Uint64
+	mu    sync.Mutex
+	subs  map[*Subscription]V
+}
+
+// Since names this hub's position: it changes with every Publish. A page
+// renders it into its stream URL (?since=…) so ServeSSE can tell whether
+// anything was published between the render and the connection. It is
+// unique per Hub, so a tab rendered by another replica always resyncs.
+func (h *Hub[V]) Since() string {
+	return h.epoch + "." + strconv.FormatUint(h.seq.Load(), 10)
 }
 
 func NewHub[V any](cfg Config) *Hub[V] {
-	return &Hub[V]{cfg: cfg.withDefaults(), subs: map[*Subscription]V{}}
+	return &Hub[V]{cfg: cfg.withDefaults(), epoch: rand.Text()[:10], subs: map[*Subscription]V{}}
 }
 
 // Publish sends topic with ids to every subscriber aud admits. With no ids
 // the frame concerns the whole topic.
 func (h *Hub[V]) Publish(ctx context.Context, aud Audience[V], topic string, ids ...string) {
+	h.seq.Add(1)
 	h.mu.Lock()
 	subs := make([]*Subscription, 0, len(h.subs))
 	viewers := make([]V, 0, len(h.subs))

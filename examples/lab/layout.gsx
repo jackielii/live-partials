@@ -5,7 +5,7 @@ import (
 	"github.com/gsxhq/vite"
 )
 
-component Layout(title string, panel gsx.Node, children gsx.Node, s *store) {
+component Layout(title string, panel gsx.Node, children gsx.Node, s *store, h *hub) {
 	{{ assets := vite.FromContext(ctx).Entry("examples/lab/web/main.js") }}
 	<!DOCTYPE html>
 	<html lang="en">
@@ -21,7 +21,7 @@ component Layout(title string, panel gsx.Node, children gsx.Node, s *store) {
 			} }
 		</head>
 		<body class="bg-stone-50 text-stone-900">
-			<div id="stream" hx-sse:connect="/events" hidden></div>
+			<div id="stream" hx-sse:connect=f`/events?since=@{h.Since()}` hidden></div>
 			<div class="grid min-h-screen grid-cols-[220px_1fr_300px]">
 				<aside class="flex flex-col gap-4 border-r border-stone-200 bg-white p-4">
 					<a href={homePage{} |> url} class="font-semibold">Live partials lab</a>

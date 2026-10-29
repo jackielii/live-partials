@@ -191,3 +191,36 @@ func TestServeSSE(t *testing.T) {
 		t.Errorf("frames:\n%s", cmp.Diff(wantFrames, got))
 	}
 }
+
+func TestServeSSESkipsResyncWhenNothingWasPublished(t *testing.T) {
+	h := NewHub[string](Config{})
+	stream := func(since string) *bufio.Scanner {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h.ServeSSE(w, r, "u")
+		}))
+		t.Cleanup(srv.Close)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"?since="+since, nil)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { res.Body.Close() })
+		return bufio.NewScanner(res.Body)
+	}
+	rendered := h.Since()
+	s := stream(rendered)
+	s.Scan()
+	s.Scan()
+	h.Publish(context.Background(), everyone, "t")
+	if s.Scan(); s.Text() != "event: t" {
+		t.Fatalf("a current tab should get no resync, got %q", s.Text())
+	}
+	s = stream(rendered)
+	s.Scan()
+	s.Scan()
+	if s.Scan(); s.Text() != "event: resync" {
+		t.Fatalf("a tab rendered before a publish should resync, got %q", s.Text())
+	}
+}
