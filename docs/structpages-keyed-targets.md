@@ -53,35 +53,26 @@ case t.Is(p.Row):
 	row, err := store.Row(ctx, string(key))
 ```
 
-## Batch: several instances in one request
+## Batch: a middleware, not structpages API
 
-`RenderComponent(a, b, …)` already renders several components into one response, for example as
-several `<hx-partial>` blocks. A push update often names many instances of one component (fifty
-changed rows). Rendering them one request per instance costs one Props call and one database query
-each. That is invisible with an in-memory store, but it is the real cost against a database.
-Batching the data load means the request names every instance it needs, and Props loads them in one
-query.
+Several instances in one response need no new structpages API. A page middleware does it, in the
+pattern one-learning's `TitleMiddleware` uses to append `<title>` after the targeted component.
 
-- **Several targets per request.** `HX-Target` carries one target. A batch request carries its list in
-  another header or form field, and the selector resolves each one. `t.Is(p.Row)` holds when any
-  target is a `Row`.
-- **A list of keys.** The injected key type is a list: `structpages.TargetKeys` holds every key the
-  request names for the matched component, and has a single key in the common case. If a list doesn't
-  fit the DI shape, `t.Keys(p.Row)` would do the same job.
-- **Props renders them together:** it loads every key in one query and returns
-  `RenderComponent(partial(p.Row(a)), partial(p.Row(b)), …)`.
-- **Opt in.** A page that doesn't handle a list still works: the caller, such as the live dispatcher's
-  batch endpoint, falls back to one request per instance.
+1. **The request.** The client sends one ordinary `GET` to the page, with a header listing every target
+   it needs: `X-Live-Targets: series-row--a series-row--b series-summary`.
+2. **The middleware.** For each target, it sets that one target as `HX-Target`, puts the target's key in
+   the context, and calls `next`. It captures the status and writes the body wrapped in
+   `<hx-partial hx-target="#…" hx-swap="outerMorph">` into the one response. A 404 becomes a removal.
+3. **Props doesn't change.** It handles one target and one key. Authentication and the outer middleware
+   run once per request; only the page handler runs per target.
+4. **Batched loading is optional.** The middleware also exposes every requested key, so a hot list's
+   Props can load them in one query on the first call and serve the rest from that.
 
-```go
-case t.Is(p.Row):
-	rows, err := store.Rows(ctx, keys) // one query for every requested instance
-	parts := make([]structpages.Renderer, len(rows))
-	for i, row := range rows {
-		parts[i] = partial(p.Row(row)) // <hx-partial hx-target="#…" hx-swap="outerMorph">
-	}
-	return props, structpages.RenderComponent(parts[0], parts[1:]...)
-```
+Selecting by keyed id works the same way: the middleware splits `series-row--a` into the component id
+and the key before structpages' selector sees it. So the one structpages addition worth having is
+**generating** keyed ids (`|> id(key)`, `|> target(key)`) with an agreed separator and escaping. The
+injected `TargetKey` above becomes optional too, since a middleware can provide the key from the
+context, though first-class is cleaner.
 
 ## Open questions for structpages
 
@@ -89,7 +80,5 @@ case t.Is(p.Row):
   byte written as `_XX`.
 - **Several keys per instance**, such as a cell identified by row and column. They could be a single
   composite key, joined by the app. This is separate from a list of instances, covered above.
-- **How a batch request names its targets:** the header name and format, and the most targets one
-  request may carry.
 - **Who answers 404 for an unknown key.** Props can return a not-found error as today, or structpages
   can provide a helper for it.
