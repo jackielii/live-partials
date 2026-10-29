@@ -2,3 +2,4 @@
 url    = "github.com/jackielii/structpages.URLFor"
 id     = "github.com/jackielii/structpages.ID"
 target = "github.com/jackielii/structpages.IDTarget"
+kid    = "github.com/jackielii/live-partials/live.ID"

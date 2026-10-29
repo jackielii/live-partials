@@ -35,8 +35,9 @@ component Layout(title string, panel gsx.Node, children gsx.Node, s *store) {
 					</nav>
 					<h2 class="mt-4 text-xs font-semibold uppercase text-stone-500">Direct messages</h2>
 					<ul class="flex flex-col gap-1 text-sm" data-testid="sidebar-people">
-						{ for _, p := range s.People() {
-							<SidebarPerson p={p}/>
+						{{ shell := shellPage{} }}
+						{ for _, pr := range s.People() {
+							<shell.DM pr={pr}/>
 						} }
 					</ul>
 				</aside>

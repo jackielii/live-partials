@@ -7,36 +7,96 @@ import (
 
 	_gsxctx "context"
 	_gsxrt "github.com/gsxhq/gsx"
+	"github.com/jackielii/live-partials/live"
+	_gsxf1 "github.com/jackielii/live-partials/live"
+	"github.com/jackielii/structpages"
 	_gsxf0 "github.com/jackielii/structpages"
 	_gsxio "io"
 )
 
-//line cases.gsx:5:1
+//line cases.gsx:10:1
 // Home
 
 type homePage struct{}
 
-//line cases.gsx:9:1
+//line cases.gsx:14:1
 func (p homePage) Page(s *store) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:10:2
+//line cases.gsx:15:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Six cases", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:10:41
+//line cases.gsx:15:41
 			_gsxgw.S("<p class=\"text-stone-600\">Open a case.</p>")
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:11:3
+//line cases.gsx:16:3
 			_gsxgw.S("<p class=\"max-w-prose\">Each case is modelled on a real screen. The amber panel changes data as another user would, the server publishes a frame on the stream, and the page updates itself. The meter counts what this tab spent.</p>")
 			return _gsxgw.Err()
-		}), /*line cases.gsx:10:31*/ s))
+		}), /*line cases.gsx:15:31*/ s))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:19:1
+//line cases.gsx:24:1
+// Shell: the layout's own live parts are rendered by this route, so no page
+// has to recognise them in its Props.
+
+type shellPage struct{}
+
+func (p shellPage) Props(r *http.Request, s *store) (person, error) {
+	return s.Person(live.Key(r))
+}
+
+//line cases.gsx:33:1
+func (p shellPage) Page(pr person) _gsxrt.Node {
+	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
+		_gsxgw := _gsxrt.W(_gsxw)
+//line cases.gsx:34:2
+		_gsxgw.Node(ctx, p.DM( /*line cases.gsx:34:12*/ pr))
+		return _gsxgw.Err()
+	})
+}
+
+//line cases.gsx:37:1
+func (p shellPage) DM(pr person) _gsxrt.Node {
+	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
+		_gsxgw := _gsxrt.W(_gsxw)
+//line cases.gsx:38:2
+		_gsxv0 := /*line cases.gsx:40:5*/ live.On("lab:presence", pr.ID)
+		_gsxgw.S("<li")
+		if !_gsxv0.Has("id") {
+			_gsxv1, _gsxerr := /*line cases.gsx:39:23*/ _gsxf1.ID(ctx, ( /*line cases.gsx:39:7*/ shellPage.DM) /*line cases.gsx:39:27*/, pr.ID)
+			if _gsxerr != nil {
+				return _gsxerr
+			}
+			_gsxgw.S(" id=\"")
+			_gsxgw.AttrValue(string(_gsxv1))
+			_gsxgw.S("\"")
+		}
+		_gsxgw.S(" class=\"")
+		_gsxgw.Class(_gsxrt.DefaultClassMerge, _gsxrt.Class("flex items-center gap-2"), _gsxrt.Class(_gsxv0.Class()))
+		_gsxgw.S("\"")
+		_gsxgw.StyleMerged("", _gsxv0.Style())
+		_gsxgw.Spread(ctx, "li", _gsxv0, _gsxrt.AttrSinks{}, []string{"class", "style", "data-live-url"})
+		_gsxv2, _gsxerr := /*line cases.gsx:41:33*/ _gsxf0.URLFor(ctx, ( /*line cases.gsx:41:18*/ shellPage{}))
+		if _gsxerr != nil {
+			return _gsxerr
+		}
+		_gsxgw.S(" data-live-url=\"")
+		_gsxgw.AttrValue(string(_gsxv2))
+		_gsxgw.S("\">")
+//line cases.gsx:43:3
+		_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:43:23*/, pr.Presence))
+//line cases.gsx:43:37
+		_gsxgw.Text(string( /*line cases.gsx:43:39*/ pr.Name))
+		_gsxgw.S("</li>")
+		return _gsxgw.Err()
+	})
+}
+
+//line cases.gsx:46:1
 // Case 1: keyed list + aggregate
 
 type seriesPage struct{}
@@ -46,176 +106,189 @@ type seriesProps struct {
 	sum  seriesSummary
 }
 
-func (p seriesPage) Props(s *store) seriesProps {
+func (p seriesPage) Props(r *http.Request, s *store, t structpages.RenderTarget) (seriesProps, []series, series, seriesSummary, error) {
+	switch {
+	case t.Is(p.Row):
+		row, err := s.OneSeries(live.Key(r))
+		return seriesProps{}, nil, row, seriesSummary{}, err
+	case t.Is(p.Summary):
+		return seriesProps{}, nil, series{}, s.Summary(), nil
+	}
 	rows, sum := s.Series()
-	return seriesProps{rows, sum}
+	return seriesProps{rows, sum}, rows, series{}, sum, nil
 }
 
-//line cases.gsx:33:1
+//line cases.gsx:67:1
 func (p seriesPage) Page(props seriesProps, s *store) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:34:2
+//line cases.gsx:68:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Series catalog", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:34:46
+//line cases.gsx:68:46
 			_gsxgw.NodeResult(_gsxrenderseriesPanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:35:3
-			_gsxgw.Node(ctx, p.Content( /*line cases.gsx:35:21*/ props))
+//line cases.gsx:69:3
+			_gsxgw.Node(ctx, p.Content( /*line cases.gsx:69:21*/ props))
 			return _gsxgw.Err()
-		}), /*line cases.gsx:34:36*/ s))
+		}), /*line cases.gsx:68:36*/ s))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:39:1
+//line cases.gsx:73:1
 func (p seriesPage) Content(props seriesProps) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:40:2
-		_gsxgw.Node(ctx, p.Summary( /*line cases.gsx:40:20*/ props))
-//line cases.gsx:41:2
+//line cases.gsx:74:2
+		_gsxgw.Node(ctx, p.Summary( /*line cases.gsx:74:18*/ props.sum))
+//line cases.gsx:75:2
 		_gsxgw.S("<table class=\"w-full text-sm\" data-testid=\"series\">")
-//line cases.gsx:42:3
+//line cases.gsx:76:3
 		_gsxgw.S("<thead>")
-//line cases.gsx:42:10
+//line cases.gsx:76:10
 		_gsxgw.S("<tr class=\"text-left text-stone-500\">")
-//line cases.gsx:42:47
+//line cases.gsx:76:47
 		_gsxgw.S("<th>Series</th>")
-//line cases.gsx:42:62
+//line cases.gsx:76:62
 		_gsxgw.S("<th>Points</th>")
-//line cases.gsx:42:77
+//line cases.gsx:76:77
 		_gsxgw.S("<th>Status</th></tr></thead>")
-//line cases.gsx:43:3
-		_gsxgw.S("<tbody>")
-//line cases.gsx:44:4
-		for /*line cases.gsx:44:10*/ _, s := range props.rows {
-//line cases.gsx:45:5
-			_gsxgw.NodeResult(_gsxrenderSeriesRow(ctx, _gsxgw /*line cases.gsx:45:19*/, s))
-		}
-		_gsxgw.S("</tbody></table>")
+//line cases.gsx:77:3
+		_gsxgw.Node(ctx, p.Rows( /*line cases.gsx:77:17*/ props.rows))
+		_gsxgw.S("</table>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:51:1
-func (p seriesPage) Summary(props seriesProps) _gsxrt.Node {
+//line cases.gsx:81:1
+func (p seriesPage) Summary(sum seriesSummary) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		var _gsxnum [32]byte
-//line cases.gsx:52:2
+//line cases.gsx:82:2
+		_gsxv3 := /*line cases.gsx:84:5*/ live.On("lab:series")
 		_gsxgw.S("<section")
-		_gsxv0, _gsxerr := /*line cases.gsx:53:29*/ _gsxf0.ID(ctx, ( /*line cases.gsx:53:7*/ seriesPage.Summary))
-		if _gsxerr != nil {
-			return _gsxerr
+		if !_gsxv3.Has("id") {
+			_gsxv4, _gsxerr := /*line cases.gsx:83:29*/ _gsxf0.ID(ctx, ( /*line cases.gsx:83:7*/ seriesPage.Summary))
+			if _gsxerr != nil {
+				return _gsxerr
+			}
+			_gsxgw.S(" id=\"")
+			_gsxgw.AttrValue(string(_gsxv4))
+			_gsxgw.S("\"")
 		}
-		_gsxgw.S(" id=\"")
-		_gsxgw.AttrValue(string(_gsxv0))
-		_gsxgw.S("\" class=\"grid grid-cols-4 gap-2 rounded border border-stone-200 bg-white p-3 text-sm\" data-testid=\"summary\"")
-		_gsxv1, _gsxerr := /*line cases.gsx:56:27*/ _gsxf0.URLFor(ctx, ( /*line cases.gsx:56:11*/ seriesPage{}))
-		if _gsxerr != nil {
-			return _gsxerr
-		}
-		_gsxgw.S(" hx-get=\"")
-		_gsxgw.AttrValue(string(_gsxv1))
-		_gsxgw.S("\" hx-trigger=\"lab:series from:#stream, resync from:#stream\" hx-swap=\"outerMorph\">")
-//line cases.gsx:60:3
+		_gsxgw.S(" class=\"")
+		_gsxgw.Class(_gsxrt.DefaultClassMerge, _gsxrt.Class("grid grid-cols-4 gap-2 rounded border border-stone-200 bg-white p-3 text-sm"), _gsxrt.Class(_gsxv3.Class()))
+		_gsxgw.S("\"")
+		_gsxgw.StyleMerged("", _gsxv3.Style())
+		_gsxgw.Spread(ctx, "section", _gsxv3, _gsxrt.AttrSinks{}, []string{"class", "style", "data-testid"})
+		_gsxgw.S(" data-testid=\"summary\">")
+//line cases.gsx:88:3
 		_gsxgw.S("<div>Series ")
-//line cases.gsx:60:15
+//line cases.gsx:88:15
 		_gsxgw.S("<b data-testid=\"sum-count\">")
-//line cases.gsx:60:42
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:60:44*/ props.sum.Count))
+//line cases.gsx:88:42
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:88:44*/ sum.Count))
 		_gsxgw.S("</b></div>")
-//line cases.gsx:61:3
+//line cases.gsx:89:3
 		_gsxgw.S("<div>Points ")
-//line cases.gsx:61:15
+//line cases.gsx:89:15
 		_gsxgw.S("<b data-testid=\"sum-points\">")
-//line cases.gsx:61:43
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:61:45*/ props.sum.Points))
+//line cases.gsx:89:43
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:89:45*/ sum.Points))
 		_gsxgw.S("</b></div>")
-//line cases.gsx:62:3
+//line cases.gsx:90:3
 		_gsxgw.S("<div>Stale ")
-//line cases.gsx:62:14
+//line cases.gsx:90:14
 		_gsxgw.S("<b>")
-//line cases.gsx:62:17
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:62:19*/ props.sum.Stale))
+//line cases.gsx:90:17
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:90:19*/ sum.Stale))
 		_gsxgw.S("</b></div>")
-//line cases.gsx:63:3
+//line cases.gsx:91:3
 		_gsxgw.S("<div>Failing ")
-//line cases.gsx:63:16
+//line cases.gsx:91:16
 		_gsxgw.S("<b data-testid=\"sum-failing\">")
-//line cases.gsx:63:45
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:63:47*/ props.sum.Failing))
+//line cases.gsx:91:45
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:91:47*/ sum.Failing))
 		_gsxgw.S("</b></div></section>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:67:1
-func SeriesRow(s series) _gsxrt.Node {
+//line cases.gsx:95:1
+func (p seriesPage) Rows(rows []series) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-		return _gsxrenderSeriesRow(ctx, _gsxgw, s)
-	})
-}
-
-func _gsxrenderSeriesRow(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer, s series) error {
-	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
-		return _gsxerr
-	}
-	var _gsxnum [32]byte
-//line cases.gsx:68:2
-	_gsxgw.S("<tr id=\"")
-	_gsxgw.AttrValue(string( /*line cases.gsx:69:7*/ "series-" + s.ID))
-	_gsxgw.S("\" data-key=\"")
-	_gsxgw.AttrValue(string( /*line cases.gsx:70:13*/ s.ID))
-	_gsxgw.S("\"")
-	_gsxv2, _gsxerr := /*line cases.gsx:71:30*/ _gsxf0.URLFor(ctx, ( /*line cases.gsx:71:11*/ seriesRowPage{}) /*line cases.gsx:71:34*/, map[string]any{"seriesId": s.ID})
-	if _gsxerr != nil {
-		return _gsxerr
-	}
-	_gsxgw.S(" hx-get=\"")
-	_gsxgw.AttrValue(string(_gsxv2))
-	_gsxgw.S("\" hx-trigger=\"lab:series[hit(detail, this.dataset.key)] from:#stream\" hx-swap=\"outerMorph\">")
-//line cases.gsx:75:3
-	_gsxgw.S("<td>")
-//line cases.gsx:75:7
-	_gsxgw.Text(string( /*line cases.gsx:75:9*/ s.Name))
-	_gsxgw.S("</td>")
-//line cases.gsx:76:3
-	_gsxgw.S("<td data-testid=\"points\">")
-//line cases.gsx:76:28
-	_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:76:30*/ s.Points))
-	_gsxgw.S("</td>")
-//line cases.gsx:77:3
-	_gsxgw.S("<td data-testid=\"status\">")
-//line cases.gsx:77:28
-	_gsxgw.Text(string( /*line cases.gsx:77:30*/ s.Status))
-	_gsxgw.S("</td></tr>")
-	return _gsxgw.Err()
-}
-
-//line cases.gsx:81:1
-type seriesRowPage struct{}
-
-func (seriesRowPage) Props(r *http.Request, s *store) (series, error) {
-	return s.OneSeries(r.PathValue("seriesId"))
-}
-
-//line cases.gsx:87:1
-func (p seriesRowPage) Page(s series) _gsxrt.Node {
-	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
-		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:88:2
-		_gsxgw.NodeResult(_gsxrenderSeriesRow(ctx, _gsxgw /*line cases.gsx:88:16*/, s))
+//line cases.gsx:96:2
+		_gsxv5 := /*line cases.gsx:96:38*/ live.On("lab:series")
+		_gsxgw.S("<tbody")
+		if !_gsxv5.Has("id") {
+			_gsxv6, _gsxerr := /*line cases.gsx:96:32*/ _gsxf0.ID(ctx, ( /*line cases.gsx:96:13*/ seriesPage.Rows))
+			if _gsxerr != nil {
+				return _gsxerr
+			}
+			_gsxgw.S(" id=\"")
+			_gsxgw.AttrValue(string(_gsxv6))
+			_gsxgw.S("\"")
+		}
+		_gsxgw.ClassMerged(_gsxrt.DefaultClassMerge, _gsxv5.Class())
+		_gsxgw.StyleMerged("", _gsxv5.Style())
+		_gsxgw.Spread(ctx, "tbody", _gsxv5, _gsxrt.AttrSinks{}, []string{"class", "style"})
+		_gsxgw.S(">")
+//line cases.gsx:97:3
+		for /*line cases.gsx:97:9*/ _, s := range rows {
+//line cases.gsx:98:4
+			_gsxgw.Node(ctx, p.Row( /*line cases.gsx:98:14*/ s))
+		}
+		_gsxgw.S("</tbody>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:91:1
+//line cases.gsx:103:1
+func (p seriesPage) Row(s series) _gsxrt.Node {
+	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
+		_gsxgw := _gsxrt.W(_gsxw)
+		var _gsxnum [32]byte
+//line cases.gsx:104:2
+		_gsxv7 := /*line cases.gsx:104:41*/ live.On("lab:series", s.ID)
+		_gsxgw.S("<tr")
+		if !_gsxv7.Has("id") {
+			_gsxv8, _gsxerr := /*line cases.gsx:104:28*/ _gsxf1.ID(ctx, ( /*line cases.gsx:104:10*/ seriesPage.Row) /*line cases.gsx:104:32*/, s.ID)
+			if _gsxerr != nil {
+				return _gsxerr
+			}
+			_gsxgw.S(" id=\"")
+			_gsxgw.AttrValue(string(_gsxv8))
+			_gsxgw.S("\"")
+		}
+		_gsxgw.ClassMerged(_gsxrt.DefaultClassMerge, _gsxv7.Class())
+		_gsxgw.StyleMerged("", _gsxv7.Style())
+		_gsxgw.Spread(ctx, "tr", _gsxv7, _gsxrt.AttrSinks{}, []string{"class", "style"})
+		_gsxgw.S(">")
+//line cases.gsx:105:3
+		_gsxgw.S("<td>")
+//line cases.gsx:105:7
+		_gsxgw.Text(string( /*line cases.gsx:105:9*/ s.Name))
+		_gsxgw.S("</td>")
+//line cases.gsx:106:3
+		_gsxgw.S("<td data-testid=\"points\">")
+//line cases.gsx:106:28
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:106:30*/ s.Points))
+		_gsxgw.S("</td>")
+//line cases.gsx:107:3
+		_gsxgw.S("<td data-testid=\"status\">")
+//line cases.gsx:107:28
+		_gsxgw.Text(string( /*line cases.gsx:107:30*/ s.Status))
+		_gsxgw.S("</td></tr>")
+		return _gsxgw.Err()
+	})
+}
+
+//line cases.gsx:111:1
 func seriesPanel() _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
@@ -227,13 +300,13 @@ func _gsxrenderseriesPanel(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer) error {
 	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
 		return _gsxerr
 	}
-//line cases.gsx:92:2
+//line cases.gsx:112:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "series-touch", "s3", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Change series s3")
 		return _gsxgw.Err()
 	})))
-//line cases.gsx:93:2
+//line cases.gsx:113:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "series-touch", "s7", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Change series s7")
@@ -242,199 +315,140 @@ func _gsxrenderseriesPanel(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer) error {
 	return _gsxgw.Err()
 }
 
-//line cases.gsx:96:1
+//line cases.gsx:116:1
 // Case 2: one person in many places
 
 type peoplePage struct{}
 
-//line cases.gsx:100:1
+func (p peoplePage) Props(r *http.Request, s *store, t structpages.RenderTarget) (person, error) {
+	if t.Is(p.Row) || t.Is(p.Card) {
+		return s.Person(live.Key(r))
+	}
+	return person{}, nil
+}
+
+//line cases.gsx:127:1
 func (p peoplePage) Page(s *store) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:101:2
+//line cases.gsx:128:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "People", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:101:38
+//line cases.gsx:128:38
 			_gsxgw.NodeResult(_gsxrenderpeoplePanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:102:3
+//line cases.gsx:129:3
 			_gsxgw.S("<div class=\"flex gap-4\">")
-//line cases.gsx:103:4
-			for /*line cases.gsx:103:10*/ _, id := range []string{"p1", "p2"} {
-//line cases.gsx:104:5
-				if /*line cases.gsx:104:10*/ person, err := s.Person(id); err == nil {
-//line cases.gsx:105:6
-					_gsxgw.NodeResult(_gsxrenderPersonCard(ctx, _gsxgw /*line cases.gsx:105:21*/, person))
+//line cases.gsx:130:4
+			for /*line cases.gsx:130:10*/ _, id := range []string{"p1", "p2"} {
+//line cases.gsx:131:5
+				if /*line cases.gsx:131:10*/ pr, err := s.Person(id); err == nil {
+//line cases.gsx:132:6
+					_gsxgw.Node(ctx, p.Card( /*line cases.gsx:132:18*/ pr))
 				}
 			}
 			_gsxgw.S("</div>")
-//line cases.gsx:109:3
+//line cases.gsx:136:3
 			_gsxgw.S("<table class=\"w-full text-sm\" data-testid=\"directory\">")
-//line cases.gsx:110:4
+//line cases.gsx:137:4
 			_gsxgw.S("<thead>")
-//line cases.gsx:110:11
+//line cases.gsx:137:11
 			_gsxgw.S("<tr class=\"text-left text-stone-500\">")
-//line cases.gsx:110:48
+//line cases.gsx:137:48
 			_gsxgw.S("<th>Name</th>")
-//line cases.gsx:110:61
+//line cases.gsx:137:61
 			_gsxgw.S("<th>Presence</th></tr></thead>")
-//line cases.gsx:111:4
+//line cases.gsx:138:4
 			_gsxgw.S("<tbody>")
-//line cases.gsx:112:5
-			for /*line cases.gsx:112:11*/ _, person := range s.People() {
-//line cases.gsx:113:6
-				_gsxgw.NodeResult(_gsxrenderDirectoryRow(ctx, _gsxgw /*line cases.gsx:113:23*/, person))
+//line cases.gsx:139:5
+			for /*line cases.gsx:139:11*/ _, pr := range s.People() {
+//line cases.gsx:140:6
+				_gsxgw.Node(ctx, p.Row( /*line cases.gsx:140:17*/ pr))
 			}
 			_gsxgw.S("</tbody></table>")
 			return _gsxgw.Err()
-		}), /*line cases.gsx:101:28*/ s))
+		}), /*line cases.gsx:128:28*/ s))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:120:1
-func SidebarPerson(p person) _gsxrt.Node {
+//line cases.gsx:147:1
+func (p peoplePage) Row(pr person) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-		return _gsxrenderSidebarPerson(ctx, _gsxgw, p)
-	})
-}
-
-func _gsxrenderSidebarPerson(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer, p person) error {
-	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
-		return _gsxerr
-	}
-//line cases.gsx:121:2
-	_gsxgw.S("<li id=\"")
-	_gsxgw.AttrValue(string( /*line cases.gsx:122:7*/ "dm-" + p.ID))
-	_gsxgw.S("\" data-key=\"")
-	_gsxgw.AttrValue(string( /*line cases.gsx:123:13*/ p.ID))
-	_gsxgw.S("\" class=\"flex items-center gap-2\"")
-	_gsxv3, _gsxerr := /*line cases.gsx:125:27*/ _gsxf0.URLFor(ctx, ( /*line cases.gsx:125:11*/ personPart{}) /*line cases.gsx:125:31*/, map[string]any{"personId": p.ID, "view": "dm"})
-	if _gsxerr != nil {
-		return _gsxerr
-	}
-	_gsxgw.S(" hx-get=\"")
-	_gsxgw.AttrValue(string(_gsxv3))
-	_gsxgw.S("\" hx-trigger=\"lab:presence[hit(detail, this.dataset.key)] from:#stream\" hx-swap=\"outerMorph\">")
-//line cases.gsx:128:3
-	_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:128:23*/, p.Presence))
-//line cases.gsx:128:36
-	_gsxgw.Text(string( /*line cases.gsx:128:38*/ p.Name))
-	_gsxgw.S("</li>")
-	return _gsxgw.Err()
-}
-
-//line cases.gsx:131:1
-func DirectoryRow(p person) _gsxrt.Node {
-	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
-		_gsxgw := _gsxrt.W(_gsxw)
-		return _gsxrenderDirectoryRow(ctx, _gsxgw, p)
-	})
-}
-
-func _gsxrenderDirectoryRow(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer, p person) error {
-	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
-		return _gsxerr
-	}
-//line cases.gsx:132:2
-	_gsxgw.S("<tr id=\"")
-	_gsxgw.AttrValue(string( /*line cases.gsx:133:7*/ "dir-" + p.ID))
-	_gsxgw.S("\" data-key=\"")
-	_gsxgw.AttrValue(string( /*line cases.gsx:134:13*/ p.ID))
-	_gsxgw.S("\"")
-	_gsxv4, _gsxerr := /*line cases.gsx:135:27*/ _gsxf0.URLFor(ctx, ( /*line cases.gsx:135:11*/ personPart{}) /*line cases.gsx:135:31*/, map[string]any{"personId": p.ID, "view": "row"})
-	if _gsxerr != nil {
-		return _gsxerr
-	}
-	_gsxgw.S(" hx-get=\"")
-	_gsxgw.AttrValue(string(_gsxv4))
-	_gsxgw.S("\" hx-trigger=\"lab:presence[hit(detail, this.dataset.key)] from:#stream\" hx-swap=\"outerMorph\">")
-//line cases.gsx:139:3
-	_gsxgw.S("<td>")
-//line cases.gsx:139:7
-	_gsxgw.Text(string( /*line cases.gsx:139:9*/ p.Name))
-	_gsxgw.S("</td>")
-//line cases.gsx:140:3
-	_gsxgw.S("<td class=\"flex items-center gap-2\">")
-//line cases.gsx:140:39
-	_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:140:59*/, p.Presence))
-//line cases.gsx:140:72
-	_gsxgw.Text(string( /*line cases.gsx:140:74*/ p.Presence))
-	_gsxgw.S("</td></tr>")
-	return _gsxgw.Err()
-}
-
-//line cases.gsx:144:1
-func PersonCard(p person) _gsxrt.Node {
-	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
-		_gsxgw := _gsxrt.W(_gsxw)
-		return _gsxrenderPersonCard(ctx, _gsxgw, p)
-	})
-}
-
-func _gsxrenderPersonCard(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer, p person) error {
-	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
-		return _gsxerr
-	}
-//line cases.gsx:145:2
-	_gsxgw.S("<article id=\"")
-	_gsxgw.AttrValue(string( /*line cases.gsx:146:7*/ "card-" + p.ID))
-	_gsxgw.S("\" data-key=\"")
-	_gsxgw.AttrValue(string( /*line cases.gsx:147:13*/ p.ID))
-	_gsxgw.S("\" class=\"w-56 rounded border border-stone-200 bg-white p-3\"")
-	_gsxv5, _gsxerr := /*line cases.gsx:149:27*/ _gsxf0.URLFor(ctx, ( /*line cases.gsx:149:11*/ personPart{}) /*line cases.gsx:149:31*/, map[string]any{"personId": p.ID, "view": "card"})
-	if _gsxerr != nil {
-		return _gsxerr
-	}
-	_gsxgw.S(" hx-get=\"")
-	_gsxgw.AttrValue(string(_gsxv5))
-	_gsxgw.S("\" hx-trigger=\"lab:presence[hit(detail, this.dataset.key)] from:#stream\" hx-swap=\"outerMorph\">")
-//line cases.gsx:153:3
-	_gsxgw.S("<h3 class=\"flex items-center gap-2 font-semibold\">")
-//line cases.gsx:153:53
-	_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:153:73*/, p.Presence))
-//line cases.gsx:153:86
-	_gsxgw.Text(string( /*line cases.gsx:153:88*/ p.Name))
-	_gsxgw.S("</h3>")
-//line cases.gsx:154:3
-	_gsxgw.S("<p class=\"text-xs text-stone-500\">Currently ")
-//line cases.gsx:154:47
-	_gsxgw.Text(string( /*line cases.gsx:154:49*/ p.Presence))
-	_gsxgw.S("</p></article>")
-	return _gsxgw.Err()
-}
-
-//line cases.gsx:158:1
-type personPart struct{}
-
-func (personPart) Props(r *http.Request, s *store) (person, error) {
-	return s.Person(r.PathValue("personId"))
-}
-
-//line cases.gsx:164:1
-func (pp personPart) Page(p person, r *http.Request) _gsxrt.Node {
-	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
-		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:165:2
-		switch /*line cases.gsx:165:11*/ r.PathValue("view") {
-		case /*line cases.gsx:166:7*/ "dm":
-//line cases.gsx:167:3
-			_gsxgw.NodeResult(_gsxrenderSidebarPerson(ctx, _gsxgw /*line cases.gsx:167:21*/, p))
-		case /*line cases.gsx:168:7*/ "row":
-//line cases.gsx:169:3
-			_gsxgw.NodeResult(_gsxrenderDirectoryRow(ctx, _gsxgw /*line cases.gsx:169:20*/, p))
-		default:
-//line cases.gsx:171:3
-			_gsxgw.NodeResult(_gsxrenderPersonCard(ctx, _gsxgw /*line cases.gsx:171:18*/, p))
+//line cases.gsx:148:2
+		_gsxv9 := /*line cases.gsx:148:42*/ live.On("lab:presence", pr.ID)
+		_gsxgw.S("<tr")
+		if !_gsxv9.Has("id") {
+			_gsxv10, _gsxerr := /*line cases.gsx:148:28*/ _gsxf1.ID(ctx, ( /*line cases.gsx:148:10*/ peoplePage.Row) /*line cases.gsx:148:32*/, pr.ID)
+			if _gsxerr != nil {
+				return _gsxerr
+			}
+			_gsxgw.S(" id=\"")
+			_gsxgw.AttrValue(string(_gsxv10))
+			_gsxgw.S("\"")
 		}
+		_gsxgw.ClassMerged(_gsxrt.DefaultClassMerge, _gsxv9.Class())
+		_gsxgw.StyleMerged("", _gsxv9.Style())
+		_gsxgw.Spread(ctx, "tr", _gsxv9, _gsxrt.AttrSinks{}, []string{"class", "style"})
+		_gsxgw.S(">")
+//line cases.gsx:149:3
+		_gsxgw.S("<td>")
+//line cases.gsx:149:7
+		_gsxgw.Text(string( /*line cases.gsx:149:9*/ pr.Name))
+		_gsxgw.S("</td>")
+//line cases.gsx:150:3
+		_gsxgw.S("<td class=\"flex items-center gap-2\">")
+//line cases.gsx:150:39
+		_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:150:59*/, pr.Presence))
+//line cases.gsx:150:73
+		_gsxgw.Text(string( /*line cases.gsx:150:75*/ pr.Presence))
+		_gsxgw.S("</td></tr>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:175:1
+//line cases.gsx:154:1
+func (p peoplePage) Card(pr person) _gsxrt.Node {
+	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
+		_gsxgw := _gsxrt.W(_gsxw)
+//line cases.gsx:155:2
+		_gsxv11 := /*line cases.gsx:157:5*/ live.On("lab:presence", pr.ID)
+		_gsxgw.S("<article")
+		if !_gsxv11.Has("id") {
+			_gsxv12, _gsxerr := /*line cases.gsx:156:26*/ _gsxf1.ID(ctx, ( /*line cases.gsx:156:7*/ peoplePage.Card) /*line cases.gsx:156:30*/, pr.ID)
+			if _gsxerr != nil {
+				return _gsxerr
+			}
+			_gsxgw.S(" id=\"")
+			_gsxgw.AttrValue(string(_gsxv12))
+			_gsxgw.S("\"")
+		}
+		_gsxgw.S(" class=\"")
+		_gsxgw.Class(_gsxrt.DefaultClassMerge, _gsxrt.Class("w-56 rounded border border-stone-200 bg-white p-3"), _gsxrt.Class(_gsxv11.Class()))
+		_gsxgw.S("\"")
+		_gsxgw.StyleMerged("", _gsxv11.Style())
+		_gsxgw.Spread(ctx, "article", _gsxv11, _gsxrt.AttrSinks{}, []string{"class", "style"})
+		_gsxgw.S(">")
+//line cases.gsx:160:3
+		_gsxgw.S("<h3 class=\"flex items-center gap-2 font-semibold\">")
+//line cases.gsx:160:53
+		_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:160:73*/, pr.Presence))
+//line cases.gsx:160:87
+		_gsxgw.Text(string( /*line cases.gsx:160:89*/ pr.Name))
+		_gsxgw.S("</h3>")
+//line cases.gsx:161:3
+		_gsxgw.S("<p class=\"text-xs text-stone-500\">Currently ")
+//line cases.gsx:161:47
+		_gsxgw.Text(string( /*line cases.gsx:161:49*/ pr.Presence))
+		_gsxgw.S("</p></article>")
+		return _gsxgw.Err()
+	})
+}
+
+//line cases.gsx:165:1
 func peoplePanel() _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
@@ -446,13 +460,13 @@ func _gsxrenderpeoplePanel(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer) error {
 	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
 		return _gsxerr
 	}
-//line cases.gsx:176:2
+//line cases.gsx:166:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "presence", "p1", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Ada changes presence")
 		return _gsxgw.Err()
 	})))
-//line cases.gsx:177:2
+//line cases.gsx:167:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "presence", "p4", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Edsger changes presence")
