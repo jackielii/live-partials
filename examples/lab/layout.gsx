@@ -52,6 +52,7 @@ component Layout(title string, panel gsx.Node, children gsx.Node, s *store, h *h
 							<dt>Frames</dt><dd data-meter="frames">0</dd>
 							<dt>Requests</dt><dd data-meter="requests">0</dd>
 							<dt>Bytes</dt><dd data-meter="bytes">0</dd>
+							<dt>Queries</dt><dd data-meter="queries">0</dd>
 							<dt>Swaps</dt><dd data-meter="swaps">0</dd>
 							<dt>Server ms</dt><dd data-meter="server">0</dd>
 							<dt>Swap ms</dt><dd data-meter="swapms">0</dd>

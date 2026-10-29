@@ -8,6 +8,7 @@ const rows: Record<string, Omit<Meter, "urls"> & { urls: number }> = {};
 
 const cases: [string, string, string[]][] = [
   ["1 one row of ten", "/series", ["Change series s3"]],
+  ["1 three rows in one frame", "/series", ["Change series s2, s5 and s8 together"]],
   ["2 one person, three places", "/people", ["Ada changes presence"]],
   ["3 neighbour row edited", "/drafts", ["Someone edits Operating cost"]],
   ["4 upload, then delete", "/files", ["Someone uploads a file", "Someone deletes minutes.docx"]],

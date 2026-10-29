@@ -8,13 +8,25 @@ test.beforeEach(async ({ request }) => {
 const post = (page, action: string, id = "") =>
   page.evaluate(([a, i]) => fetch(`/sim/${a}`, { method: "POST", body: new URLSearchParams({ id: i }) }), [action, id]);
 
-test("a frame costs one request however many elements it touches", async ({ page }) => {
+test("a frame costs one GET per page URL however many elements it touches", async ({ page }) => {
   await open(page, "/people");
   await post(page, "presence", "p1");
   await settle(page);
   const m = await meter(page);
-  expect(m.urls).toEqual(["/live"]);
+  // The directory row and card are the page's; the sidebar row is the shell's (data-live-url).
+  expect([...m.urls].sort()).toEqual(["/people", "/shell"]);
   expect(m.swaps).toBe(3);
+});
+
+test("three rows in one frame are one GET and one row query", async ({ page }) => {
+  await open(page, "/series");
+  await post(page, "series-touch", "s2 s5 s8");
+  await expect(page.locator("#series-row--s8 [data-testid=points]")).toHaveText("807");
+  await settle(page);
+  const m = await meter(page);
+  expect(m.urls).toEqual(["/series"]);
+  expect(m.swaps).toBe(4); // three rows and the summary
+  expect(m.queries).toBe(2); // live.Load: one for the rows, one for the summary
 });
 
 test("outer wins: a status change refetches the job card, not its step line too", async ({ page }) => {
@@ -50,7 +62,7 @@ test("a deleted row is removed by the 404 its refetch gets", async ({ page }) =>
   await post(page, "file-delete", "f2");
   await expect(page.locator("#files-item--f2")).toHaveCount(0);
   await settle(page);
-  expect((await meter(page)).urls).toEqual(["/live"]);
+  expect((await meter(page)).urls).toEqual(["/files"]);
 });
 
 test("a focused, unedited field in a row that changes keeps focus", async ({ page }) => {

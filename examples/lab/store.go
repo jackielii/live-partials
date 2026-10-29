@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 var errNotFound = errors.New("not found")
@@ -54,8 +57,14 @@ type job struct {
 	Step     string
 }
 
-// store is the lab's shared in-memory state; every tab sees the same data.
+// store is one request's handle on the lab's shared in-memory state, which
+// every tab sees. Each exported method counts as one database query.
 type store struct {
+	*state
+	queries *atomic.Int32 // this request's queries; nil outside a request
+}
+
+type state struct {
 	mu       sync.Mutex
 	series   []series
 	people   []person
@@ -67,9 +76,29 @@ type store struct {
 }
 
 func newStore() *store {
-	s := &store{}
+	s := &store{state: &state{}}
 	s.reset()
 	return s
+}
+
+type queriesKey struct{}
+
+// withQueries returns ctx carrying a fresh query counter for forRequest.
+func withQueries(ctx context.Context) (context.Context, *atomic.Int32) {
+	n := new(atomic.Int32)
+	return context.WithValue(ctx, queriesKey{}, n), n
+}
+
+// forRequest is the store handle for r, counting into r's counter.
+func (s *store) forRequest(r *http.Request) (*store, error) {
+	n, _ := r.Context().Value(queriesKey{}).(*atomic.Int32)
+	return &store{state: s.state, queries: n}, nil
+}
+
+func (s *store) query() {
+	if s.queries != nil {
+		s.queries.Add(1)
+	}
 }
 
 // reset restores the seed data, so each e2e test starts from the same state.
@@ -110,22 +139,29 @@ func find[T any](xs []T, id string, key func(T) string) (int, error) {
 func (s *store) Series() ([]series, seriesSummary) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	return slices.Clone(s.series), s.summaryLocked()
 }
 
-func (s *store) OneSeries(id string) (series, error) {
+// SeriesByID loads the series with the given ids in one query; ids it
+// does not know are absent from the map.
+func (s *store) SeriesByID(ids []string) (map[string]series, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	i, err := find(s.series, id, func(x series) string { return x.ID })
-	if err != nil {
-		return series{}, err
+	s.query()
+	out := make(map[string]series, len(ids))
+	for _, x := range s.series {
+		if slices.Contains(ids, x.ID) {
+			out[x.ID] = x
+		}
 	}
-	return s.series[i], nil
+	return out, nil
 }
 
 func (s *store) Summary() seriesSummary {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	return s.summaryLocked()
 }
 
@@ -150,6 +186,7 @@ func (s *store) summaryLocked() seriesSummary {
 func (s *store) TouchSeries(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.series, id, func(x series) string { return x.ID })
 	if err != nil {
 		return err
@@ -162,12 +199,14 @@ func (s *store) TouchSeries(id string) error {
 func (s *store) People() []person {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	return slices.Clone(s.people)
 }
 
 func (s *store) Person(id string) (person, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.people, id, func(x person) string { return x.ID })
 	if err != nil {
 		return person{}, err
@@ -178,6 +217,7 @@ func (s *store) Person(id string) (person, error) {
 func (s *store) CyclePresence(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.people, id, func(x person) string { return x.ID })
 	if err != nil {
 		return err
@@ -189,12 +229,14 @@ func (s *store) CyclePresence(id string) error {
 func (s *store) Drafts() []draftRow {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	return slices.Clone(s.drafts)
 }
 
 func (s *store) Draft(id string) (draftRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.drafts, id, func(x draftRow) string { return x.ID })
 	if err != nil {
 		return draftRow{}, err
@@ -205,6 +247,7 @@ func (s *store) Draft(id string) (draftRow, error) {
 func (s *store) SaveDraft(id, value, by string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.drafts, id, func(x draftRow) string { return x.ID })
 	if err != nil {
 		return err
@@ -217,12 +260,14 @@ func (s *store) SaveDraft(id, value, by string) error {
 func (s *store) Files() []file {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	return slices.Clone(s.files)
 }
 
 func (s *store) File(id string) (file, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.files, id, func(x file) string { return x.ID })
 	if err != nil {
 		return file{}, err
@@ -233,6 +278,7 @@ func (s *store) File(id string) (file, error) {
 func (s *store) AddFile(name string) file {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	return s.addFileLocked(name)
 }
 
@@ -247,6 +293,7 @@ func (s *store) addFileLocked(name string) file {
 func (s *store) DeleteFile(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.files, id, func(x file) string { return x.ID })
 	if err != nil {
 		return err
@@ -258,12 +305,14 @@ func (s *store) DeleteFile(id string) error {
 func (s *store) Burst() []burstRow {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	return slices.Clone(s.burst)
 }
 
 func (s *store) BurstRow(id string) (burstRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.burst, id, func(x burstRow) string { return x.ID })
 	if err != nil {
 		return burstRow{}, err
@@ -274,6 +323,7 @@ func (s *store) BurstRow(id string) (burstRow, error) {
 func (s *store) BumpBurst(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.burst, id, func(x burstRow) string { return x.ID })
 	if err != nil {
 		return err
@@ -285,12 +335,14 @@ func (s *store) BumpBurst(id string) error {
 func (s *store) Jobs() []job {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	return slices.Clone(s.jobs)
 }
 
 func (s *store) Job(id string) (job, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.jobs, id, func(x job) string { return x.ID })
 	if err != nil {
 		return job{}, err
@@ -302,6 +354,7 @@ func (s *store) Job(id string) (job, error) {
 func (s *store) AdvanceJob(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.jobs, id, func(x job) string { return x.ID })
 	if err != nil {
 		return err
@@ -314,6 +367,7 @@ func (s *store) AdvanceJob(id string) error {
 func (s *store) StepJob(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.query()
 	i, err := find(s.jobs, id, func(x job) string { return x.ID })
 	if err != nil {
 		return err

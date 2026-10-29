@@ -3,8 +3,9 @@ package main
 import (
 	"net/http"
 
-	"github.com/jackielii/live-partials/live"
 	"github.com/jackielii/structpages"
+
+	"github.com/jackielii/live-partials/live"
 )
 
 // Case 3: editor with unsaved input
@@ -13,7 +14,7 @@ type draftsPage struct{}
 
 func (p draftsPage) Props(r *http.Request, s *store, t structpages.RenderTarget) (draftRow, error) {
 	if t.Is(p.Row) {
-		return s.Draft(live.Key(r))
+		return s.Draft(structpages.KeyOf(t))
 	}
 	return draftRow{}, nil
 }
@@ -31,7 +32,7 @@ component (p draftsPage) Page(s *store, h *hub) {
 
 component (p draftsPage) Row(d draftRow) {
 	<form
-		id={draftsPage.Row |> kid(d.ID)}
+		id={draftsPage.Row |> key(d.ID)}
 		{ live.On("lab:draft", d.ID)... }
 		class="flex items-center gap-2"
 		hx-post={saveDraft{} |> url(map[string]any{"rowId": d.ID})}
@@ -79,7 +80,7 @@ type fileCount int
 
 func (p filesPage) Props(r *http.Request, s *store, t structpages.RenderTarget) ([]file, file, fileCount, error) {
 	if t.Is(p.Item) {
-		f, err := s.File(live.Key(r))
+		f, err := s.File(structpages.KeyOf(t))
 		return nil, f, 0, err
 	}
 	files := s.Files()
@@ -114,7 +115,7 @@ component (p filesPage) List(files []file) {
 }
 
 component (p filesPage) Item(f file) {
-	<li id={filesPage.Item |> kid(f.ID)} { live.On("lab:files", f.ID)... } class="flex justify-between px-3 py-1 text-sm">
+	<li id={filesPage.Item |> key(f.ID)} { live.On("lab:files", f.ID)... } class="flex justify-between px-3 py-1 text-sm">
 		<span>{ f.Name }</span><span class="text-stone-500">{ f.Size / 1024 } KB</span>
 	</li>
 }
@@ -130,7 +131,7 @@ type burstPage struct{}
 
 func (p burstPage) Props(r *http.Request, s *store, t structpages.RenderTarget) ([]burstRow, burstRow, error) {
 	if t.Is(p.Row) {
-		b, err := s.BurstRow(live.Key(r))
+		b, err := s.BurstRow(structpages.KeyOf(t))
 		return nil, b, err
 	}
 	return s.Burst(), burstRow{}, nil
@@ -153,7 +154,7 @@ component (p burstPage) Rows(rows []burstRow) {
 }
 
 component (p burstPage) Row(b burstRow) {
-	<tr id={burstPage.Row |> kid(b.ID)} { live.On("lab:burst", b.ID)... }>
+	<tr id={burstPage.Row |> key(b.ID)} { live.On("lab:burst", b.ID)... }>
 		<td>{ b.ID }</td>
 		<td data-testid="value">{ b.Value }</td>
 	</tr>
@@ -165,7 +166,7 @@ type jobsPage struct{}
 
 func (p jobsPage) Props(r *http.Request, s *store, t structpages.RenderTarget) (job, error) {
 	if t.Is(p.Card) || t.Is(p.Progress) || t.Is(p.Step) {
-		return s.Job(live.Key(r))
+		return s.Job(structpages.KeyOf(t))
 	}
 	return job{}, nil
 }
@@ -182,7 +183,7 @@ component (p jobsPage) Page(s *store, h *hub) {
 
 component (p jobsPage) Card(j job) {
 	<article
-		id={jobsPage.Card |> kid(j.ID)}
+		id={jobsPage.Card |> key(j.ID)}
 		{ live.On("lab:job", j.ID)... }
 		data-testid={"job-" + j.ID}
 		class="rounded border border-stone-200 bg-white p-3"
@@ -194,13 +195,13 @@ component (p jobsPage) Card(j job) {
 }
 
 component (p jobsPage) Progress(j job) {
-	<div id={jobsPage.Progress |> kid(j.ID)} { live.On("lab:job-progress", j.ID)... } class="my-2 h-2 rounded bg-stone-200">
+	<div id={jobsPage.Progress |> key(j.ID)} { live.On("lab:job-progress", j.ID)... } class="my-2 h-2 rounded bg-stone-200">
 		<div class="h-2 rounded bg-sky-500" style=css`width: @{j.Progress}%` data-testid="job-progress" data-progress={j.Progress}></div>
 	</div>
 }
 
 component (p jobsPage) Step(j job) {
-	<p id={jobsPage.Step |> kid(j.ID)} { live.On("lab:job", j.ID)... } class="text-xs text-stone-500" data-testid="job-step">{ j.Step }</p>
+	<p id={jobsPage.Step |> key(j.ID)} { live.On("lab:job", j.ID)... } class="text-xs text-stone-500" data-testid="job-step">{ j.Step }</p>
 }
 
 component jobsPanel() {

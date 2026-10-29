@@ -1,7 +1,7 @@
 // Counts what this tab spends on live updates: frames heard, requests made
-// (excluding the stream and the simulate panel), response bytes, swaps, and
-// server and swap time. Exposed on window.__meter for the e2e tests.
-const m = { frames: 0, requests: 0, bytes: 0, swaps: 0, server: 0, swapms: 0, urls: [] };
+// (excluding the stream and the simulate panel), response bytes, store
+// queries, swaps, and server and swap time. Exposed on window.__meter for the e2e tests.
+const m = { frames: 0, requests: 0, bytes: 0, queries: 0, swaps: 0, server: 0, swapms: 0, urls: [] };
 window.__meter = m;
 
 const counted = (ctx) => {
@@ -31,6 +31,7 @@ document.addEventListener("htmx:after:request", (e) => {
   m.bytes += new TextEncoder().encode(ctx.text || "").length;
   const t = ctx.response.headers.get("Server-Timing")?.match(/dur=([\d.]+)/);
   m.server += t ? parseFloat(t[1]) : 0;
+  m.queries += Number(ctx.response.headers.get("X-Queries") || 0);
   render();
 });
 document.addEventListener("htmx:before:swap", (e) => {
@@ -45,6 +46,6 @@ document.addEventListener("htmx:after:swap", (e) => {
 });
 document.addEventListener("click", (e) => {
   if (!e.target.closest("[data-meter-reset]")) return;
-  Object.assign(m, { frames: 0, requests: 0, bytes: 0, swaps: 0, server: 0, swapms: 0, urls: [] });
+  Object.assign(m, { frames: 0, requests: 0, bytes: 0, queries: 0, swaps: 0, server: 0, swapms: 0, urls: [] });
   render();
 });

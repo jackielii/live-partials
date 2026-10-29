@@ -90,7 +90,7 @@ function dispatcher(doc) {
   let pendingTick = null;
   const d = createDispatcher({
     root: doc,
-    htmx: { ajax: async (verb, url, opts) => calls.push({ verb, url, items: JSON.parse(opts.values.live) }) },
+    htmx: { ajax: async (verb, url, opts) => calls.push({ verb, url, ids: opts.headers["X-Live-Targets"].split(" ") }) },
     schedule: (fn) => (pendingTick = fn),
   });
   const tick = async () => {
@@ -101,28 +101,41 @@ function dispatcher(doc) {
   return { d, calls, tick };
 }
 
-test("frames within one animation frame go out as one request of (page URL, target)", async () => {
+test("frames within one animation frame go out as one GET of the page, listing every target", async () => {
   const doc = page(`<section id="tile" data-live="t"></section><table><tbody id="list" data-live="t">${rows(10)}</tbody></table>`);
   const { d, calls, tick } = dispatcher(doc);
   d.frame("t", ["k3"]);
   d.frame("t", ["k5"]);
   d.frame("t", ["k3"]);
   await tick();
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "/live");
-  assert.deepEqual(calls[0].items, [
-    { url: "/series?q=1", target: "section#tile" },
-    { url: "/series?q=1", target: "tr#r3" },
-    { url: "/series?q=1", target: "tr#r5" },
-  ]);
+  assert.deepEqual(calls, [{ verb: "GET", url: "/series?q=1", ids: ["tile", "r3", "r5"] }]);
 });
 
-test("data-live-url overrides the page URL", async () => {
-  const doc = page(`<li id="dm" data-live="p" data-live-key="1" data-live-url="/shell"></li>`);
+test("data-live-url sends that element in a GET of its own URL, in the same batch", async () => {
+  const doc = page(`<li id="dm" data-live="p" data-live-key="1" data-live-url="/shell"></li><div id="row" data-live="p" data-live-key="1"></div>`);
   const { d, calls, tick } = dispatcher(doc);
   d.frame("p", ["1"]);
   await tick();
-  assert.deepEqual(calls[0].items, [{ url: "/shell", target: "li#dm" }]);
+  assert.deepEqual(calls, [
+    { verb: "GET", url: "/shell", ids: ["dm"] },
+    { verb: "GET", url: "/series?q=1", ids: ["row"] },
+  ]);
+});
+
+test("past maxTargets the rest wait for the next batch", async () => {
+  const doc = page(`<table><tbody id="list" data-live="t" data-live-max="99">${rows(10)}</tbody></table>`);
+  const calls = [];
+  let tickFn;
+  const d = createDispatcher({
+    root: doc,
+    maxTargets: 3,
+    htmx: { ajax: async (v, u, o) => calls.push(o.headers["X-Live-Targets"]) },
+    schedule: (fn) => (tickFn = fn),
+  });
+  d.frame("t", ["k1", "k2", "k3", "k4"]);
+  await tickFn();
+  await tickFn();
+  assert.deepEqual(calls, ["r1 r2 r3", "r4"]);
 });
 
 test("one request in flight: frames arriving meanwhile wait for the next batch", async () => {
@@ -132,7 +145,7 @@ test("one request in flight: frames arriving meanwhile wait for the next batch",
   let tickFn;
   const d = createDispatcher({
     root: doc,
-    htmx: { ajax: (v, u, o) => (calls.push(JSON.parse(o.values.live)), new Promise((r) => (release = r))) },
+    htmx: { ajax: (v, u, o) => (calls.push(o.headers["X-Live-Targets"].split(" ")), new Promise((r) => (release = r))) },
     schedule: (fn) => (tickFn = fn),
   });
   d.frame("t", ["k1"]);
@@ -146,7 +159,7 @@ test("one request in flight: frames arriving meanwhile wait for the next batch",
   release();
   await second;
   assert.equal(calls.length, 2);
-  assert.deepEqual(calls[1].map((i) => i.target), ["tr#r2", "tr#r3"]);
+  assert.deepEqual(calls[1], ["r2", "r3"]);
 });
 
 test("a dirty element is not refetched; its notice is revealed", async () => {
@@ -159,7 +172,7 @@ test("a dirty element is not refetched; its notice is revealed", async () => {
   doc.addEventListener("live:stale", () => staleEvents++);
   d.frame("draft", ["d1", "d2"]);
   await tick();
-  assert.deepEqual(calls[0].items.map((i) => i.target), ["div#d2"]);
+  assert.deepEqual(calls[0].ids, ["d2"]);
   assert.equal(doc.querySelector("#d1 [data-live-stale]").hidden, false);
   assert.equal(doc.querySelector("#d2 [data-live-stale]").hidden, true);
   assert.equal(staleEvents, 1);
@@ -173,7 +186,7 @@ test("an escalated region with a dirty row falls back to its clean rows", async 
   const { d, calls, tick } = dispatcher(doc);
   d.frame("draft", ["d1", "d2", "d3"]);
   await tick();
-  assert.deepEqual(calls[0].items.map((i) => i.target), ["div#d2", "div#d3"]);
+  assert.deepEqual(calls[0].ids, ["d2", "d3"]);
   assert.equal(doc.querySelector("#d1 [data-live-stale]").hidden, false);
 });
 
@@ -184,7 +197,7 @@ test("refresh discards unsaved input and refetches", async () => {
   d.refresh(doc.getElementById("d1"));
   await tick();
   assert.equal(doc.querySelector("input").value, "1");
-  assert.deepEqual(calls[0].items.map((i) => i.target), ["div#d1"]);
+  assert.deepEqual(calls[0].ids, ["d1"]);
 });
 
 test("resync refetches every outermost live element of every topic", async () => {
@@ -193,13 +206,13 @@ test("resync refetches every outermost live element of every topic", async () =>
   const { d, calls, tick } = dispatcher(doc);
   d.resync();
   await tick();
-  assert.deepEqual(calls[0].items.map((i) => i.target), ["section#tile", "tbody#list", "article#card"]);
+  assert.deepEqual(calls[0].ids, ["tile", "list", "card"]);
 });
 
 test("Live-Skipped targets are queued again", async () => {
   const doc = page(`<table><tbody id="list" data-live="t">${rows(3)}</tbody></table>`);
   const { d, calls, tick } = dispatcher(doc);
-  d.requeue(["tr#r2", "tr#gone"]);
+  d.requeue(["r2", "gone"]);
   await tick();
-  assert.deepEqual(calls[0].items.map((i) => i.target), ["tr#r2"]);
+  assert.deepEqual(calls[0].ids, ["r2"]);
 });

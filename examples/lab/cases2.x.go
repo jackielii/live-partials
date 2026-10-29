@@ -8,62 +8,61 @@ import (
 	_gsxctx "context"
 	_gsxrt "github.com/gsxhq/gsx"
 	"github.com/jackielii/live-partials/live"
-	_gsxf1 "github.com/jackielii/live-partials/live"
 	"github.com/jackielii/structpages"
 	_gsxf0 "github.com/jackielii/structpages"
 	_gsxio "io"
 	_gsxsc "strconv"
 )
 
-//line cases2.gsx:10:1
+//line cases2.gsx:11:1
 // Case 3: editor with unsaved input
 
 type draftsPage struct{}
 
 func (p draftsPage) Props(r *http.Request, s *store, t structpages.RenderTarget) (draftRow, error) {
 	if t.Is(p.Row) {
-		return s.Draft(live.Key(r))
+		return s.Draft(structpages.KeyOf(t))
 	}
 	return draftRow{}, nil
 }
 
-//line cases2.gsx:21:1
+//line cases2.gsx:22:1
 func (p draftsPage) Page(s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:22:2
+//line cases2.gsx:23:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Report draft", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:22:50
+//line cases2.gsx:23:50
 			_gsxgw.NodeResult(_gsxrenderdraftsPanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:23:3
-			_gsxgw.S("<p class=\"text-sm text-stone-600\">Edit a value and leave it unsaved; changes by others to that row warn instead of overwriting.</p>")
 //line cases2.gsx:24:3
+			_gsxgw.S("<p class=\"text-sm text-stone-600\">Edit a value and leave it unsaved; changes by others to that row warn instead of overwriting.</p>")
+//line cases2.gsx:25:3
 			_gsxgw.S("<div class=\"flex flex-col gap-2\" data-testid=\"drafts\">")
-//line cases2.gsx:25:4
-			for /*line cases2.gsx:25:10*/ _, d := range s.Drafts() {
-//line cases2.gsx:26:5
-				_gsxgw.Node(ctx, p.Row( /*line cases2.gsx:26:15*/ d))
+//line cases2.gsx:26:4
+			for /*line cases2.gsx:26:10*/ _, d := range s.Drafts() {
+//line cases2.gsx:27:5
+				_gsxgw.Node(ctx, p.Row( /*line cases2.gsx:27:15*/ d))
 			}
 			_gsxgw.S("</div>")
 			return _gsxgw.Err()
-		}), /*line cases2.gsx:22:34*/ s /*line cases2.gsx:22:40*/, h))
+		}), /*line cases2.gsx:23:34*/ s /*line cases2.gsx:23:40*/, h))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:32:1
+//line cases2.gsx:33:1
 func (p draftsPage) Row(d draftRow) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:33:2
-		_gsxv0 := /*line cases2.gsx:35:5*/ live.On("lab:draft", d.ID)
+//line cases2.gsx:34:2
+		_gsxv0 := /*line cases2.gsx:36:5*/ live.On("lab:draft", d.ID)
 		_gsxgw.S("<form")
 		if !_gsxv0.Has("id") {
-			_gsxv1, _gsxerr := /*line cases2.gsx:34:25*/ _gsxf1.ID(ctx, ( /*line cases2.gsx:34:7*/ draftsPage.Row) /*line cases2.gsx:34:29*/, d.ID)
+			_gsxv1, _gsxerr := /*line cases2.gsx:35:25*/ _gsxf0.Key(ctx, ( /*line cases2.gsx:35:7*/ draftsPage.Row) /*line cases2.gsx:35:29*/, d.ID)
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -76,44 +75,44 @@ func (p draftsPage) Row(d draftRow) _gsxrt.Node {
 		_gsxgw.S("\"")
 		_gsxgw.StyleMerged("", _gsxv0.Style())
 		_gsxgw.Spread(ctx, "form", _gsxv0, _gsxrt.AttrSinks{}, []string{"class", "style", "hx-post", "hx-target", "hx-swap"})
-		_gsxv2, _gsxerr := /*line cases2.gsx:37:27*/ _gsxf0.URLFor(ctx, ( /*line cases2.gsx:37:12*/ saveDraft{}) /*line cases2.gsx:37:31*/, map[string]any{"rowId": d.ID})
+		_gsxv2, _gsxerr := /*line cases2.gsx:38:27*/ _gsxf0.URLFor(ctx, ( /*line cases2.gsx:38:12*/ saveDraft{}) /*line cases2.gsx:38:31*/, map[string]any{"rowId": d.ID})
 		if _gsxerr != nil {
 			return _gsxerr
 		}
 		_gsxgw.S(" hx-post=\"")
 		_gsxgw.AttrValue(string(_gsxv2))
 		_gsxgw.S("\" hx-target=\"this\" hx-swap=\"outerMorph\">")
-//line cases2.gsx:41:3
-		_gsxgw.S("<label class=\"w-40 text-sm\" for=\"")
-		_gsxgw.AttrValue(string( /*line cases2.gsx:41:36*/ "draft-input-" + d.ID))
-		_gsxgw.S("\">")
-//line cases2.gsx:41:59
-		_gsxgw.Text(string( /*line cases2.gsx:41:61*/ d.Label))
-		_gsxgw.S("</label>")
 //line cases2.gsx:42:3
-		_gsxgw.S("<input id=\"")
-		_gsxgw.AttrValue(string( /*line cases2.gsx:42:14*/ "draft-input-" + d.ID))
-		_gsxgw.S("\" name=\"value\" value=\"")
-		_gsxgw.AttrValue(string( /*line cases2.gsx:42:57*/ d.Value))
-		_gsxgw.S("\" class=\"rounded border border-stone-300 px-2 py-1\">")
+		_gsxgw.S("<label class=\"w-40 text-sm\" for=\"")
+		_gsxgw.AttrValue(string( /*line cases2.gsx:42:36*/ "draft-input-" + d.ID))
+		_gsxgw.S("\">")
+//line cases2.gsx:42:59
+		_gsxgw.Text(string( /*line cases2.gsx:42:61*/ d.Label))
+		_gsxgw.S("</label>")
 //line cases2.gsx:43:3
-		_gsxgw.S("<button class=\"rounded border border-stone-300 px-2 py-1 text-sm\">Save</button>")
+		_gsxgw.S("<input id=\"")
+		_gsxgw.AttrValue(string( /*line cases2.gsx:43:14*/ "draft-input-" + d.ID))
+		_gsxgw.S("\" name=\"value\" value=\"")
+		_gsxgw.AttrValue(string( /*line cases2.gsx:43:57*/ d.Value))
+		_gsxgw.S("\" class=\"rounded border border-stone-300 px-2 py-1\">")
 //line cases2.gsx:44:3
-		if /*line cases2.gsx:44:8*/ d.By != "" {
-//line cases2.gsx:45:4
+		_gsxgw.S("<button class=\"rounded border border-stone-300 px-2 py-1 text-sm\">Save</button>")
+//line cases2.gsx:45:3
+		if /*line cases2.gsx:45:8*/ d.By != "" {
+//line cases2.gsx:46:4
 			_gsxgw.S("<span class=\"text-xs text-stone-500\">last saved by ")
-//line cases2.gsx:45:55
-			_gsxgw.Text(string( /*line cases2.gsx:45:57*/ d.By))
+//line cases2.gsx:46:55
+			_gsxgw.Text(string( /*line cases2.gsx:46:57*/ d.By))
 			_gsxgw.S("</span>")
 		}
-//line cases2.gsx:47:3
+//line cases2.gsx:48:3
 		_gsxgw.S("<p")
 		_gsxgw.BoolAttr("data-live-stale", true)
 		_gsxgw.BoolAttr("hidden", true)
 		_gsxgw.S(" class=\"text-xs text-amber-800\">Changed by someone else ·")
-//line cases2.gsx:48:30
-		_gsxgw.Text(string( /*line cases2.gsx:48:31*/ " "))
-//line cases2.gsx:49:4
+//line cases2.gsx:49:30
+		_gsxgw.Text(string( /*line cases2.gsx:49:31*/ " "))
+//line cases2.gsx:50:4
 		_gsxgw.S("<button type=\"button\" class=\"underline\"")
 		_gsxgw.BoolAttr("data-live-refresh", true)
 		_gsxgw.S(">Refresh</button></p></form>")
@@ -121,7 +120,7 @@ func (p draftsPage) Row(d draftRow) _gsxrt.Node {
 	})
 }
 
-//line cases2.gsx:54:1
+//line cases2.gsx:55:1
 type saveDraft struct{}
 
 func (saveDraft) ServeHTTP(w http.ResponseWriter, r *http.Request, s *store, h *hub) error {
@@ -137,7 +136,7 @@ func (saveDraft) ServeHTTP(w http.ResponseWriter, r *http.Request, s *store, h *
 	return structpages.RenderComponent(draftsPage{}.Row(d))
 }
 
-//line cases2.gsx:69:1
+//line cases2.gsx:70:1
 func draftsPanel() _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
@@ -149,13 +148,13 @@ func _gsxrenderdraftsPanel(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer) error {
 	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
 		return _gsxerr
 	}
-//line cases2.gsx:70:2
+//line cases2.gsx:71:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "draft", "d1", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Someone edits Revenue")
 		return _gsxgw.Err()
 	})))
-//line cases2.gsx:71:2
+//line cases2.gsx:72:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "draft", "d2", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Someone edits Operating cost")
@@ -164,7 +163,7 @@ func _gsxrenderdraftsPanel(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer) error {
 	return _gsxgw.Err()
 }
 
-//line cases2.gsx:74:1
+//line cases2.gsx:75:1
 // Case 4: insert and delete
 
 type filesPage struct{}
@@ -173,45 +172,45 @@ type fileCount int
 
 func (p filesPage) Props(r *http.Request, s *store, t structpages.RenderTarget) ([]file, file, fileCount, error) {
 	if t.Is(p.Item) {
-		f, err := s.File(live.Key(r))
+		f, err := s.File(structpages.KeyOf(t))
 		return nil, f, 0, err
 	}
 	files := s.Files()
 	return files, file{}, fileCount(len(files)), nil
 }
 
-//line cases2.gsx:89:1
+//line cases2.gsx:90:1
 func (p filesPage) Page(files []file, n fileCount, s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:90:2
+//line cases2.gsx:91:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Files", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:90:43
+//line cases2.gsx:91:43
 			_gsxgw.NodeResult(_gsxrenderfilesPanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:91:3
-			_gsxgw.Node(ctx, p.Count( /*line cases2.gsx:91:15*/ n))
 //line cases2.gsx:92:3
-			_gsxgw.Node(ctx, p.List( /*line cases2.gsx:92:18*/ files))
+			_gsxgw.Node(ctx, p.Count( /*line cases2.gsx:92:15*/ n))
+//line cases2.gsx:93:3
+			_gsxgw.Node(ctx, p.List( /*line cases2.gsx:93:18*/ files))
 			return _gsxgw.Err()
-		}), /*line cases2.gsx:90:27*/ s /*line cases2.gsx:90:33*/, h))
+		}), /*line cases2.gsx:91:27*/ s /*line cases2.gsx:91:33*/, h))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:96:1
+//line cases2.gsx:97:1
 func (p filesPage) Count(n fileCount) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		var _gsxnum [32]byte
-//line cases2.gsx:97:2
-		_gsxv3 := /*line cases2.gsx:97:34*/ live.On("lab:files")
+//line cases2.gsx:98:2
+		_gsxv3 := /*line cases2.gsx:98:34*/ live.On("lab:files")
 		_gsxgw.S("<p")
 		if !_gsxv3.Has("id") {
-			_gsxv4, _gsxerr := /*line cases2.gsx:97:28*/ _gsxf0.ID(ctx, ( /*line cases2.gsx:97:9*/ filesPage.Count))
+			_gsxv4, _gsxerr := /*line cases2.gsx:98:28*/ _gsxf0.ID(ctx, ( /*line cases2.gsx:98:9*/ filesPage.Count))
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -225,24 +224,24 @@ func (p filesPage) Count(n fileCount) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv3.Style())
 		_gsxgw.Spread(ctx, "p", _gsxv3, _gsxrt.AttrSinks{}, []string{"class", "style"})
 		_gsxgw.S(">")
-//line cases2.gsx:98:3
+//line cases2.gsx:99:3
 		_gsxgw.S("<span data-testid=\"file-count\">")
-//line cases2.gsx:98:34
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases2.gsx:98:36*/ int(n)))
+//line cases2.gsx:99:34
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases2.gsx:99:36*/ int(n)))
 		_gsxgw.S("</span> files</p>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:102:1
+//line cases2.gsx:103:1
 func (p filesPage) List(files []file) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:103:2
-		_gsxv5 := /*line cases2.gsx:105:5*/ live.On("lab:files")
+//line cases2.gsx:104:2
+		_gsxv5 := /*line cases2.gsx:106:5*/ live.On("lab:files")
 		_gsxgw.S("<ul")
 		if !_gsxv5.Has("id") {
-			_gsxv6, _gsxerr := /*line cases2.gsx:104:25*/ _gsxf0.ID(ctx, ( /*line cases2.gsx:104:7*/ filesPage.List))
+			_gsxv6, _gsxerr := /*line cases2.gsx:105:25*/ _gsxf0.ID(ctx, ( /*line cases2.gsx:105:7*/ filesPage.List))
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -257,26 +256,26 @@ func (p filesPage) List(files []file) _gsxrt.Node {
 		_gsxgw.Spread(ctx, "ul", _gsxv5, _gsxrt.AttrSinks{}, []string{"class", "style", "data-live-insert", "data-testid"})
 		_gsxgw.BoolAttr("data-live-insert", true)
 		_gsxgw.S(" data-testid=\"files\">")
-//line cases2.gsx:110:3
-		for /*line cases2.gsx:110:9*/ _, f := range files {
-//line cases2.gsx:111:4
-			_gsxgw.Node(ctx, p.Item( /*line cases2.gsx:111:15*/ f))
+//line cases2.gsx:111:3
+		for /*line cases2.gsx:111:9*/ _, f := range files {
+//line cases2.gsx:112:4
+			_gsxgw.Node(ctx, p.Item( /*line cases2.gsx:112:15*/ f))
 		}
 		_gsxgw.S("</ul>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:116:1
+//line cases2.gsx:117:1
 func (p filesPage) Item(f file) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		var _gsxnum [32]byte
-//line cases2.gsx:117:2
-		_gsxv7 := /*line cases2.gsx:117:41*/ live.On("lab:files", f.ID)
+//line cases2.gsx:118:2
+		_gsxv7 := /*line cases2.gsx:118:41*/ live.On("lab:files", f.ID)
 		_gsxgw.S("<li")
 		if !_gsxv7.Has("id") {
-			_gsxv8, _gsxerr := /*line cases2.gsx:117:28*/ _gsxf1.ID(ctx, ( /*line cases2.gsx:117:10*/ filesPage.Item) /*line cases2.gsx:117:32*/, f.ID)
+			_gsxv8, _gsxerr := /*line cases2.gsx:118:28*/ _gsxf0.Key(ctx, ( /*line cases2.gsx:118:10*/ filesPage.Item) /*line cases2.gsx:118:32*/, f.ID)
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -290,21 +289,21 @@ func (p filesPage) Item(f file) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv7.Style())
 		_gsxgw.Spread(ctx, "li", _gsxv7, _gsxrt.AttrSinks{}, []string{"class", "style"})
 		_gsxgw.S(">")
-//line cases2.gsx:118:3
+//line cases2.gsx:119:3
 		_gsxgw.S("<span>")
-//line cases2.gsx:118:9
-		_gsxgw.Text(string( /*line cases2.gsx:118:11*/ f.Name))
+//line cases2.gsx:119:9
+		_gsxgw.Text(string( /*line cases2.gsx:119:11*/ f.Name))
 		_gsxgw.S("</span>")
-//line cases2.gsx:118:26
+//line cases2.gsx:119:26
 		_gsxgw.S("<span class=\"text-stone-500\">")
-//line cases2.gsx:118:55
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases2.gsx:118:57*/ f.Size/1024))
+//line cases2.gsx:119:55
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases2.gsx:119:57*/ f.Size/1024))
 		_gsxgw.S(" KB</span></li>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:122:1
+//line cases2.gsx:123:1
 func filesPanel() _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
@@ -316,13 +315,13 @@ func _gsxrenderfilesPanel(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer) error {
 	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
 		return _gsxerr
 	}
-//line cases2.gsx:123:2
+//line cases2.gsx:124:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "file-add", "", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Someone uploads a file")
 		return _gsxgw.Err()
 	})))
-//line cases2.gsx:124:2
+//line cases2.gsx:125:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "file-delete", "f2", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Someone deletes minutes.docx")
@@ -331,27 +330,27 @@ func _gsxrenderfilesPanel(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer) error {
 	return _gsxgw.Err()
 }
 
-//line cases2.gsx:127:1
+//line cases2.gsx:128:1
 // Case 5: burst
 
 type burstPage struct{}
 
 func (p burstPage) Props(r *http.Request, s *store, t structpages.RenderTarget) ([]burstRow, burstRow, error) {
 	if t.Is(p.Row) {
-		b, err := s.BurstRow(live.Key(r))
+		b, err := s.BurstRow(structpages.KeyOf(t))
 		return nil, b, err
 	}
 	return s.Burst(), burstRow{}, nil
 }
 
-//line cases2.gsx:139:1
+//line cases2.gsx:140:1
 func (p burstPage) Page(rows []burstRow, s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:140:2
+//line cases2.gsx:141:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Burst", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:140:43
+//line cases2.gsx:141:43
 			_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "burst", "", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 				_gsxgw := _gsxrt.W(_gsxw)
 				_gsxgw.S("50 rows change within 100 ms")
@@ -360,26 +359,26 @@ func (p burstPage) Page(rows []burstRow, s *store, h *hub) _gsxrt.Node {
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:141:3
+//line cases2.gsx:142:3
 			_gsxgw.S("<table class=\"w-full text-sm\" data-testid=\"burst\">")
-//line cases2.gsx:142:4
-			_gsxgw.Node(ctx, p.Rows( /*line cases2.gsx:142:18*/ rows))
+//line cases2.gsx:143:4
+			_gsxgw.Node(ctx, p.Rows( /*line cases2.gsx:143:18*/ rows))
 			_gsxgw.S("</table>")
 			return _gsxgw.Err()
-		}), /*line cases2.gsx:140:27*/ s /*line cases2.gsx:140:33*/, h))
+		}), /*line cases2.gsx:141:27*/ s /*line cases2.gsx:141:33*/, h))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:147:1
+//line cases2.gsx:148:1
 func (p burstPage) Rows(rows []burstRow) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:148:2
-		_gsxv9 := /*line cases2.gsx:148:37*/ live.On("lab:burst")
+//line cases2.gsx:149:2
+		_gsxv9 := /*line cases2.gsx:149:37*/ live.On("lab:burst")
 		_gsxgw.S("<tbody")
 		if !_gsxv9.Has("id") {
-			_gsxv10, _gsxerr := /*line cases2.gsx:148:31*/ _gsxf0.ID(ctx, ( /*line cases2.gsx:148:13*/ burstPage.Rows))
+			_gsxv10, _gsxerr := /*line cases2.gsx:149:31*/ _gsxf0.ID(ctx, ( /*line cases2.gsx:149:13*/ burstPage.Rows))
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -391,26 +390,26 @@ func (p burstPage) Rows(rows []burstRow) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv9.Style())
 		_gsxgw.Spread(ctx, "tbody", _gsxv9, _gsxrt.AttrSinks{}, []string{"class", "style"})
 		_gsxgw.S(">")
-//line cases2.gsx:149:3
-		for /*line cases2.gsx:149:9*/ _, b := range rows {
-//line cases2.gsx:150:4
-			_gsxgw.Node(ctx, p.Row( /*line cases2.gsx:150:14*/ b))
+//line cases2.gsx:150:3
+		for /*line cases2.gsx:150:9*/ _, b := range rows {
+//line cases2.gsx:151:4
+			_gsxgw.Node(ctx, p.Row( /*line cases2.gsx:151:14*/ b))
 		}
 		_gsxgw.S("</tbody>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:155:1
+//line cases2.gsx:156:1
 func (p burstPage) Row(b burstRow) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		var _gsxnum [32]byte
-//line cases2.gsx:156:2
-		_gsxv11 := /*line cases2.gsx:156:40*/ live.On("lab:burst", b.ID)
+//line cases2.gsx:157:2
+		_gsxv11 := /*line cases2.gsx:157:40*/ live.On("lab:burst", b.ID)
 		_gsxgw.S("<tr")
 		if !_gsxv11.Has("id") {
-			_gsxv12, _gsxerr := /*line cases2.gsx:156:27*/ _gsxf1.ID(ctx, ( /*line cases2.gsx:156:10*/ burstPage.Row) /*line cases2.gsx:156:31*/, b.ID)
+			_gsxv12, _gsxerr := /*line cases2.gsx:157:27*/ _gsxf0.Key(ctx, ( /*line cases2.gsx:157:10*/ burstPage.Row) /*line cases2.gsx:157:31*/, b.ID)
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -422,67 +421,67 @@ func (p burstPage) Row(b burstRow) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv11.Style())
 		_gsxgw.Spread(ctx, "tr", _gsxv11, _gsxrt.AttrSinks{}, []string{"class", "style"})
 		_gsxgw.S(">")
-//line cases2.gsx:157:3
-		_gsxgw.S("<td>")
-//line cases2.gsx:157:7
-		_gsxgw.Text(string( /*line cases2.gsx:157:9*/ b.ID))
-		_gsxgw.S("</td>")
 //line cases2.gsx:158:3
+		_gsxgw.S("<td>")
+//line cases2.gsx:158:7
+		_gsxgw.Text(string( /*line cases2.gsx:158:9*/ b.ID))
+		_gsxgw.S("</td>")
+//line cases2.gsx:159:3
 		_gsxgw.S("<td data-testid=\"value\">")
-//line cases2.gsx:158:27
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases2.gsx:158:29*/ b.Value))
+//line cases2.gsx:159:27
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases2.gsx:159:29*/ b.Value))
 		_gsxgw.S("</td></tr>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:162:1
+//line cases2.gsx:163:1
 // Case 6: nested levels
 
 type jobsPage struct{}
 
 func (p jobsPage) Props(r *http.Request, s *store, t structpages.RenderTarget) (job, error) {
 	if t.Is(p.Card) || t.Is(p.Progress) || t.Is(p.Step) {
-		return s.Job(live.Key(r))
+		return s.Job(structpages.KeyOf(t))
 	}
 	return job{}, nil
 }
 
-//line cases2.gsx:173:1
+//line cases2.gsx:174:1
 func (p jobsPage) Page(s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:174:2
+//line cases2.gsx:175:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Jobs", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:174:42
+//line cases2.gsx:175:42
 			_gsxgw.NodeResult(_gsxrenderjobsPanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:175:3
+//line cases2.gsx:176:3
 			_gsxgw.S("<div class=\"flex flex-col gap-3\">")
-//line cases2.gsx:176:4
-			for /*line cases2.gsx:176:10*/ _, j := range s.Jobs() {
-//line cases2.gsx:177:5
-				_gsxgw.Node(ctx, p.Card( /*line cases2.gsx:177:16*/ j))
+//line cases2.gsx:177:4
+			for /*line cases2.gsx:177:10*/ _, j := range s.Jobs() {
+//line cases2.gsx:178:5
+				_gsxgw.Node(ctx, p.Card( /*line cases2.gsx:178:16*/ j))
 			}
 			_gsxgw.S("</div>")
 			return _gsxgw.Err()
-		}), /*line cases2.gsx:174:26*/ s /*line cases2.gsx:174:32*/, h))
+		}), /*line cases2.gsx:175:26*/ s /*line cases2.gsx:175:32*/, h))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:183:1
+//line cases2.gsx:184:1
 func (p jobsPage) Card(j job) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:184:2
-		_gsxv13 := /*line cases2.gsx:186:5*/ live.On("lab:job", j.ID)
+//line cases2.gsx:185:2
+		_gsxv13 := /*line cases2.gsx:187:5*/ live.On("lab:job", j.ID)
 		_gsxgw.S("<article")
 		if !_gsxv13.Has("id") {
-			_gsxv14, _gsxerr := /*line cases2.gsx:185:24*/ _gsxf1.ID(ctx, ( /*line cases2.gsx:185:7*/ jobsPage.Card) /*line cases2.gsx:185:28*/, j.ID)
+			_gsxv14, _gsxerr := /*line cases2.gsx:186:24*/ _gsxf0.Key(ctx, ( /*line cases2.gsx:186:7*/ jobsPage.Card) /*line cases2.gsx:186:28*/, j.ID)
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -496,37 +495,37 @@ func (p jobsPage) Card(j job) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv13.Style())
 		_gsxgw.Spread(ctx, "article", _gsxv13, _gsxrt.AttrSinks{}, []string{"class", "style", "data-testid"})
 		_gsxgw.S(" data-testid=\"")
-		_gsxgw.AttrValue(string( /*line cases2.gsx:187:16*/ "job-" + j.ID))
+		_gsxgw.AttrValue(string( /*line cases2.gsx:188:16*/ "job-" + j.ID))
 		_gsxgw.S("\">")
-//line cases2.gsx:190:3
-		_gsxgw.S("<h3 class=\"font-semibold\">")
-//line cases2.gsx:190:29
-		_gsxgw.Text(string( /*line cases2.gsx:190:31*/ j.Name))
-		_gsxgw.S(" ")
-//line cases2.gsx:190:40
-		_gsxgw.S("<span class=\"text-xs text-stone-500\" data-testid=\"job-status\">")
-//line cases2.gsx:190:102
-		_gsxgw.Text(string( /*line cases2.gsx:190:104*/ j.Status))
-		_gsxgw.S("</span></h3>")
 //line cases2.gsx:191:3
-		_gsxgw.Node(ctx, p.Progress( /*line cases2.gsx:191:18*/ j))
+		_gsxgw.S("<h3 class=\"font-semibold\">")
+//line cases2.gsx:191:29
+		_gsxgw.Text(string( /*line cases2.gsx:191:31*/ j.Name))
+		_gsxgw.S(" ")
+//line cases2.gsx:191:40
+		_gsxgw.S("<span class=\"text-xs text-stone-500\" data-testid=\"job-status\">")
+//line cases2.gsx:191:102
+		_gsxgw.Text(string( /*line cases2.gsx:191:104*/ j.Status))
+		_gsxgw.S("</span></h3>")
 //line cases2.gsx:192:3
-		_gsxgw.Node(ctx, p.Step( /*line cases2.gsx:192:14*/ j))
+		_gsxgw.Node(ctx, p.Progress( /*line cases2.gsx:192:18*/ j))
+//line cases2.gsx:193:3
+		_gsxgw.Node(ctx, p.Step( /*line cases2.gsx:193:14*/ j))
 		_gsxgw.S("</article>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:196:1
+//line cases2.gsx:197:1
 func (p jobsPage) Progress(j job) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		var _gsxnum [32]byte
-//line cases2.gsx:197:2
-		_gsxv15 := /*line cases2.gsx:197:45*/ live.On("lab:job-progress", j.ID)
+//line cases2.gsx:198:2
+		_gsxv15 := /*line cases2.gsx:198:45*/ live.On("lab:job-progress", j.ID)
 		_gsxgw.S("<div")
 		if !_gsxv15.Has("id") {
-			_gsxv16, _gsxerr := /*line cases2.gsx:197:32*/ _gsxf1.ID(ctx, ( /*line cases2.gsx:197:11*/ jobsPage.Progress) /*line cases2.gsx:197:36*/, j.ID)
+			_gsxv16, _gsxerr := /*line cases2.gsx:198:32*/ _gsxf0.Key(ctx, ( /*line cases2.gsx:198:11*/ jobsPage.Progress) /*line cases2.gsx:198:36*/, j.ID)
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -540,25 +539,25 @@ func (p jobsPage) Progress(j job) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv15.Style())
 		_gsxgw.Spread(ctx, "div", _gsxv15, _gsxrt.AttrSinks{}, []string{"class", "style"})
 		_gsxgw.S(">")
-//line cases2.gsx:198:3
+//line cases2.gsx:199:3
 		_gsxgw.S("<div class=\"h-2 rounded bg-sky-500\" style=\"width: ")
-		_gsxgw.AttrValue(_gsxrt.StyleValue(_gsxsc.FormatInt(int64( /*line cases2.gsx:198:58*/ j.Progress), 10)))
+		_gsxgw.AttrValue(_gsxrt.StyleValue(_gsxsc.FormatInt(int64( /*line cases2.gsx:199:58*/ j.Progress), 10)))
 		_gsxgw.S("%\" data-testid=\"job-progress\" data-progress=\"")
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases2.gsx:198:114*/ j.Progress))
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases2.gsx:199:114*/ j.Progress))
 		_gsxgw.S("\"></div></div>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:202:1
+//line cases2.gsx:203:1
 func (p jobsPage) Step(j job) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases2.gsx:203:2
-		_gsxv17 := /*line cases2.gsx:203:39*/ live.On("lab:job", j.ID)
+//line cases2.gsx:204:2
+		_gsxv17 := /*line cases2.gsx:204:39*/ live.On("lab:job", j.ID)
 		_gsxgw.S("<p")
 		if !_gsxv17.Has("id") {
-			_gsxv18, _gsxerr := /*line cases2.gsx:203:26*/ _gsxf1.ID(ctx, ( /*line cases2.gsx:203:9*/ jobsPage.Step) /*line cases2.gsx:203:30*/, j.ID)
+			_gsxv18, _gsxerr := /*line cases2.gsx:204:26*/ _gsxf0.Key(ctx, ( /*line cases2.gsx:204:9*/ jobsPage.Step) /*line cases2.gsx:204:30*/, j.ID)
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -572,14 +571,14 @@ func (p jobsPage) Step(j job) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv17.Style())
 		_gsxgw.Spread(ctx, "p", _gsxv17, _gsxrt.AttrSinks{}, []string{"class", "style", "data-testid"})
 		_gsxgw.S(" data-testid=\"job-step\">")
-//line cases2.gsx:203:123
-		_gsxgw.Text(string( /*line cases2.gsx:203:125*/ j.Step))
+//line cases2.gsx:204:123
+		_gsxgw.Text(string( /*line cases2.gsx:204:125*/ j.Step))
 		_gsxgw.S("</p>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases2.gsx:206:1
+//line cases2.gsx:207:1
 func jobsPanel() _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
@@ -591,13 +590,13 @@ func _gsxrenderjobsPanel(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer) error {
 	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
 		return _gsxerr
 	}
-//line cases2.gsx:207:2
+//line cases2.gsx:208:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "job-advance", "j1", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Job j1 progresses")
 		return _gsxgw.Err()
 	})))
-//line cases2.gsx:208:2
+//line cases2.gsx:209:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "job-step", "j1", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Job j1 changes status")

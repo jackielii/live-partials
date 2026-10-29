@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-export type Meter = { frames: number; requests: number; bytes: number; swaps: number; server: number; swapms: number; urls: string[] };
+export type Meter = { frames: number; requests: number; bytes: number; queries: number; swaps: number; server: number; swapms: number; urls: string[] };
 
 // open loads a case and waits until the connect-time resync has settled, then
 // zeroes the meter so a test reads only what its own action cost.

@@ -3,8 +3,9 @@ package main
 import (
 	"net/http"
 
-	"github.com/jackielii/live-partials/live"
 	"github.com/jackielii/structpages"
+
+	"github.com/jackielii/live-partials/live"
 )
 
 // Home
@@ -26,8 +27,8 @@ component (p homePage) Page(s *store, h *hub) {
 
 type shellPage struct{}
 
-func (p shellPage) Props(r *http.Request, s *store) (person, error) {
-	return s.Person(live.Key(r))
+func (p shellPage) Props(t structpages.RenderTarget, s *store) (person, error) {
+	return s.Person(structpages.KeyOf(t))
 }
 
 component (p shellPage) Page(pr person) {
@@ -36,7 +37,7 @@ component (p shellPage) Page(pr person) {
 
 component (p shellPage) DM(pr person) {
 	<li
-		id={shellPage.DM |> kid(pr.ID)}
+		id={shellPage.DM |> key(pr.ID)}
 		{ live.On("lab:presence", pr.ID)... }
 		data-live-url={shellPage{} |> url}
 		class="flex items-center gap-2"
@@ -55,7 +56,7 @@ type seriesProps struct {
 func (p seriesPage) Props(r *http.Request, s *store, t structpages.RenderTarget) (seriesProps, []series, series, seriesSummary, error) {
 	switch {
 	case t.Is(p.Row):
-		row, err := s.OneSeries(live.Key(r))
+		row, err := live.Load(r.Context(), t, p.Row, s.SeriesByID)
 		return seriesProps{}, nil, row, seriesSummary{}, err
 	case t.Is(p.Summary):
 		return seriesProps{}, nil, series{}, s.Summary(), nil
@@ -101,7 +102,7 @@ component (p seriesPage) Rows(rows []series) {
 }
 
 component (p seriesPage) Row(s series) {
-	<tr id={seriesPage.Row |> kid(s.ID)} { live.On("lab:series", s.ID)... }>
+	<tr id={seriesPage.Row |> key(s.ID)} { live.On("lab:series", s.ID)... }>
 		<td>{ s.Name }</td>
 		<td data-testid="points">{ s.Points }</td>
 		<td data-testid="status">{ s.Status }</td>
@@ -111,6 +112,7 @@ component (p seriesPage) Row(s series) {
 component seriesPanel() {
 	<SimButton action="series-touch" id="s3">Change series s3</SimButton>
 	<SimButton action="series-touch" id="s7">Change series s7</SimButton>
+	<SimButton action="series-touch" id="s2 s5 s8">Change series s2, s5 and s8 together</SimButton>
 }
 
 // Case 2: one person in many places
@@ -119,7 +121,7 @@ type peoplePage struct{}
 
 func (p peoplePage) Props(r *http.Request, s *store, t structpages.RenderTarget) (person, error) {
 	if t.Is(p.Row) || t.Is(p.Card) {
-		return s.Person(live.Key(r))
+		return s.Person(structpages.KeyOf(t))
 	}
 	return person{}, nil
 }
@@ -145,7 +147,7 @@ component (p peoplePage) Page(s *store, h *hub) {
 }
 
 component (p peoplePage) Row(pr person) {
-	<tr id={peoplePage.Row |> kid(pr.ID)} { live.On("lab:presence", pr.ID)... }>
+	<tr id={peoplePage.Row |> key(pr.ID)} { live.On("lab:presence", pr.ID)... }>
 		<td>{ pr.Name }</td>
 		<td class="flex items-center gap-2"><presenceDot state={pr.Presence}/>{ pr.Presence }</td>
 	</tr>
@@ -153,7 +155,7 @@ component (p peoplePage) Row(pr person) {
 
 component (p peoplePage) Card(pr person) {
 	<article
-		id={peoplePage.Card |> kid(pr.ID)}
+		id={peoplePage.Card |> key(pr.ID)}
 		{ live.On("lab:presence", pr.ID)... }
 		class="w-56 rounded border border-stone-200 bg-white p-3"
 	>

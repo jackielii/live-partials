@@ -2,18 +2,17 @@ package live
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/jackielii/structpages"
 )
 
@@ -21,23 +20,59 @@ type comp func(ctx context.Context, w io.Writer) error
 
 func (c comp) Render(ctx context.Context, w io.Writer) error { return c(ctx, w) }
 
-var rows = map[string]string{"a": "Alpha", "b/1": "Beta"}
+var (
+	errBoom      = errors.New("boom")
+	errSignedOut = errors.New("signed out")
+	errMoved     = errors.New("moved")
+)
 
-var errMissing = errors.New("missing")
+// rowStore counts its loads, standing in for a database.
+type rowStore struct {
+	rows    map[string]string
+	queries [][]string
+}
+
+func (s *rowStore) Rows(keys []string) (map[string]string, error) {
+	s.queries = append(s.queries, slices.Clone(keys))
+	out := map[string]string{}
+	for _, k := range keys {
+		switch k {
+		case "boom":
+			return nil, errBoom
+		}
+		if v, ok := s.rows[k]; ok {
+			out[k] = v
+		}
+	}
+	return out, nil
+}
 
 type listPage struct{}
 
-type rowProps struct{ key, name string }
+type row struct{ key, name string }
 
-func (p listPage) Props(r *http.Request, t structpages.RenderTarget) (rowProps, error) {
-	if t.Is(p.Row) {
-		name, ok := rows[Key(r)]
-		if !ok {
-			return rowProps{}, errMissing
+func (p listPage) Props(r *http.Request, w http.ResponseWriter, t structpages.RenderTarget, s *rowStore) (row, error) {
+	switch {
+	case t.Is(p.Row):
+		key := structpages.KeyOf(t)
+		switch key {
+		case "signedout":
+			return row{}, errSignedOut
+		case "moved":
+			return row{}, errMoved
+		case "fail":
+			return row{}, errBoom
+		case "tick":
+			w.Header().Set("HX-Trigger", `{"tick":{"n":1}}`)
+		case "ping":
+			w.Header().Set("HX-Trigger", "ping, pong")
 		}
-		return rowProps{Key(r), name}, nil
+		name, err := Load(r.Context(), t, p.Row, s.Rows)
+		return row{key, name}, err
+	case t.Is(p.Total):
+		return row{name: "total"}, nil
 	}
-	return rowProps{}, nil
+	return row{}, nil
 }
 
 func (p listPage) Page() comp {
@@ -47,13 +82,24 @@ func (p listPage) Page() comp {
 	}
 }
 
-func (p listPage) Row(props rowProps) comp {
+func (p listPage) Row(rw row) comp {
 	return func(ctx context.Context, w io.Writer) error {
-		id, err := ID(ctx, listPage.Row, props.key)
+		id, err := structpages.Key(ctx, listPage.Row, rw.key)
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(w, `<tr id="%s"><td>%s</td></tr>`, id, props.name)
+		_, err = fmt.Fprintf(w, `<tr id="%s"><td>%s</td></tr>`, id, rw.name)
+		return err
+	}
+}
+
+func (p listPage) Total(rw row) comp {
+	return func(ctx context.Context, w io.Writer) error {
+		id, err := structpages.ID(ctx, listPage.Total)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(w, `<p id="%s">%s</p>`, id, rw.name)
 		return err
 	}
 }
@@ -62,28 +108,47 @@ type root struct {
 	list listPage `route:"/list List"`
 }
 
-// app is a structpages app behind a cookie check, standing in for a host's
-// full handler chain.
-func app(t *testing.T, hits *atomic.Int32) http.Handler {
+// counters count how often the host's outer chain and the page handler run.
+type counters struct{ outer, inner atomic.Int32 }
+
+// app is a structpages app with the batch middleware, behind a cookie check
+// standing in for a host's authentication.
+func app(t *testing.T, s *rowStore, c *counters, opts ...Batch) http.Handler {
+	t.Helper()
+	b := Batch{}
+	if len(opts) > 0 {
+		b = opts[0]
+	}
 	mux := http.NewServeMux()
+	inner := func(next http.Handler, _ *structpages.PageNode) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.inner.Add(1)
+			next.ServeHTTP(w, r)
+		})
+	}
 	_, err := structpages.Mount(mux, root{}, "/", "Test",
-		structpages.WithTargetSelector(Selector(structpages.HTMXv4RenderTarget)),
+		structpages.WithArgs(s),
+		structpages.WithTargetSelector(structpages.HTMXv4RenderTarget),
+		structpages.WithMiddlewares(b.Middleware, inner),
 		structpages.WithErrorHandler(func(w http.ResponseWriter, r *http.Request, err error) {
-			if errors.Is(err, errMissing) {
+			switch {
+			case errors.Is(err, ErrNotFound):
 				http.Error(w, "gone", http.StatusNotFound)
-				return
+			case errors.Is(err, errSignedOut):
+				http.Error(w, "sign in", http.StatusUnauthorized)
+			case errors.Is(err, errMoved):
+				w.Header().Set("HX-Location", "/elsewhere")
+			default:
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if hits != nil {
-			hits.Add(1)
-		}
-		if c, err := r.Cookie("session"); err != nil || c.Value != "ok" {
+		c.outer.Add(1)
+		if ck, err := r.Cookie("session"); err != nil || ck.Value != "ok" {
 			http.Error(w, "no", http.StatusUnauthorized)
 			return
 		}
@@ -91,11 +156,16 @@ func app(t *testing.T, hits *atomic.Int32) http.Handler {
 	})
 }
 
-func post(t *testing.T, h http.Handler, items []item, cookie bool) *httptest.ResponseRecorder {
-	t.Helper()
-	b, _ := json.Marshal(items)
-	req := httptest.NewRequest("POST", "/live", strings.NewReader(url.Values{"live": {string(b)}}.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+func newStore() *rowStore {
+	return &rowStore{rows: map[string]string{"a": "Alpha", "b/1": "Beta", "c": "Gamma", "tick": "Tick", "ping": "Ping"}}
+}
+
+func get(h http.Handler, targets string, cookie bool) *httptest.ResponseRecorder {
+	req := httptest.NewRequest("GET", "/list", nil)
+	req.Header.Set("HX-Request", "true")
+	if targets != "" {
+		req.Header.Set(TargetsHeader, targets)
+	}
 	if cookie {
 		req.AddCookie(&http.Cookie{Name: "session", Value: "ok"})
 	}
@@ -104,131 +174,197 @@ func post(t *testing.T, h http.Handler, items []item, cookie bool) *httptest.Res
 	return rec
 }
 
-func TestBatchHandler(t *testing.T) {
-	h := BatchHandler(app(t, nil))
+func partial(id, body string) string {
+	return fmt.Sprintf(`<hx-partial hx-target="#%s" hx-swap="outerMorph">%s</hx-partial>`, id, body)
+}
+
+func deleted(id string) string {
+	return fmt.Sprintf(`<hx-partial hx-target="#%s" hx-swap="delete"></hx-partial>`, id)
+}
+
+func TestMiddleware(t *testing.T) {
 	tests := []struct {
-		name   string
-		items  []item
-		cookie bool
-		want   string
+		name    string
+		targets string
+		cookie  bool
+		status  int
+		want    string
+		trigger string
 	}{
 		{
-			name:   "a keyed row renders inside a morphing partial",
-			items:  []item{{"/list", "tr#list-row--a"}},
-			cookie: true,
-			want:   `<hx-partial hx-target="#list-row--a" hx-swap="outerMorph"><tr id="list-row--a"><td>Alpha</td></tr></hx-partial>`,
+			name:    "keyed rows and an unkeyed region render in request order",
+			targets: "list-row--a list-total list-row--b_2f1",
+			cookie:  true,
+			status:  200,
+			want: partial("list-row--a", `<tr id="list-row--a"><td>Alpha</td></tr>`) +
+				partial("list-total", `<p id="list-total">total</p>`) +
+				partial("list-row--b_2f1", `<tr id="list-row--b_2f1"><td>Beta</td></tr>`),
 		},
 		{
-			name:   "an escaped key round-trips",
-			items:  []item{{"/list", "tr#list-row--b_2f1"}},
-			cookie: true,
-			want:   `<hx-partial hx-target="#list-row--b_2f1" hx-swap="outerMorph"><tr id="list-row--b_2f1"><td>Beta</td></tr></hx-partial>`,
+			name:    "a 404 removes its element",
+			targets: "list-row--zz list-row--a",
+			cookie:  true,
+			status:  200,
+			want:    deleted("list-row--zz") + partial("list-row--a", `<tr id="list-row--a"><td>Alpha</td></tr>`),
 		},
 		{
-			name:   "404 removes the element",
-			items:  []item{{"/list", "tr#list-row--zz"}},
-			cookie: true,
-			want:   `<hx-partial hx-target="#list-row--zz" hx-swap="delete"></hx-partial>`,
+			name:    "a failing target is skipped; the others still render",
+			targets: "list-row--fail list-row--a",
+			cookie:  true,
+			status:  200,
+			want:    partial("list-row--a", `<tr id="list-row--a"><td>Alpha</td></tr>`),
 		},
 		{
-			name:   "items keep their order",
-			items:  []item{{"/list", "tr#list-row--zz"}, {"/list", "tr#list-row--a"}},
-			cookie: true,
-			want:   `<hx-partial hx-target="#list-row--zz" hx-swap="delete"></hx-partial><hx-partial hx-target="#list-row--a" hx-swap="outerMorph"><tr id="list-row--a"><td>Alpha</td></tr></hx-partial>`,
+			name:    "a response whose root is not the target (the whole page) is skipped",
+			targets: "nothing-here list-row--c",
+			cookie:  true,
+			status:  200,
+			want:    partial("list-row--c", `<tr id="list-row--c"><td>Gamma</td></tr>`),
 		},
 		{
-			name:  "the caller's cookies decide: no session, no content",
-			items: []item{{"/list", "tr#list-row--a"}},
+			name:    "HX-Trigger from every target is merged",
+			targets: "list-row--ping list-row--tick",
+			cookie:  true,
+			status:  200,
+			want: partial("list-row--ping", `<tr id="list-row--ping"><td>Ping</td></tr>`) +
+				partial("list-row--tick", `<tr id="list-row--tick"><td>Tick</td></tr>`),
+			trigger: `{"ping":{},"pong":{},"tick":{"n":1}}`,
 		},
 		{
-			name:   "a response that is not the target (the whole page) is skipped",
-			items:  []item{{"/list", "div#nothing-here"}},
-			cookie: true,
+			name:    "a 401 from a target aborts the batch and keeps earlier triggers",
+			targets: "list-row--ping list-row--signedout list-row--a",
+			cookie:  true,
+			status:  401,
+			want:    "sign in\n",
+			trigger: "ping, pong",
 		},
 		{
-			name:   "absolute and relative URLs are refused",
-			items:  []item{{"http://evil.example/list", "tr#list-row--a"}, {"list", "tr#list-row--a"}},
-			cookie: true,
+			name:    "HX-Location from a target aborts the batch",
+			targets: "list-row--a list-row--moved list-row--c",
+			cookie:  true,
+			status:  200,
+			want:    "",
+		},
+		{
+			name:    "the outer chain decides: no session, no content",
+			targets: "list-row--a",
+			status:  401,
+			want:    "no\n",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := post(t, h, tt.items, tt.cookie)
-			if rec.Code != 200 {
-				t.Fatalf("status %d: %s", rec.Code, rec.Body)
+			rec := get(app(t, newStore(), &counters{}), tt.targets, tt.cookie)
+			if rec.Code != tt.status {
+				t.Fatalf("status %d, want %d: %s", rec.Code, tt.status, rec.Body)
 			}
-			if got := rec.Body.String(); got != tt.want {
+			got := rec.Body.String()
+			if got != tt.want {
 				t.Errorf("body\n got %s\nwant %s", got, tt.want)
+			}
+			if h := rec.Header().Get("HX-Trigger"); h != tt.trigger {
+				t.Errorf("HX-Trigger = %q, want %q", h, tt.trigger)
 			}
 		})
 	}
 }
 
-func TestBatchHandlerRejectsBadRequests(t *testing.T) {
-	h := &Batch{Next: app(t, nil), MaxItems: 2}
-	if rec := post(t, h, nil, true); rec.Code != 400 {
-		t.Errorf("empty list: %d", rec.Code)
+func TestMiddlewareAbortSendsTheTargetsResponse(t *testing.T) {
+	rec := get(app(t, newStore(), &counters{}), "list-row--a list-row--moved list-row--c", true)
+	if got := rec.Header().Get("HX-Location"); got != "/elsewhere" {
+		t.Errorf("HX-Location = %q", got)
 	}
-	three := []item{{"/list", "tr#list-row--a"}, {"/list", "tr#list-row--a"}, {"/list", "tr#list-row--a"}}
-	if rec := post(t, h, three, true); rec.Code != 400 {
-		t.Errorf("over MaxItems: %d", rec.Code)
+	if strings.Contains(rec.Body.String(), "hx-partial") {
+		t.Errorf("partials sent with an abort: %s", rec.Body)
 	}
 }
 
-func TestBatchHandlerBoundsSize(t *testing.T) {
-	h := &Batch{Next: app(t, nil), MaxBytes: 150}
-	rec := post(t, h, []item{{"/list", "tr#list-row--a"}, {"/list", "tr#list-row--b_2f1"}}, true)
-	if got := rec.Header().Get("Live-Skipped"); got != "tr#list-row--b_2f1" {
-		t.Errorf("Live-Skipped = %q", got)
+// TestBatchedLoadFailsItsTargetsOnly: a loader error fails every target
+// that shares the query, and nothing else.
+func TestBatchedLoadFailsItsTargetsOnly(t *testing.T) {
+	rec := get(app(t, newStore(), &counters{}), "list-row--a list-total list-row--boom", true)
+	if want := partial("list-total", `<p id="list-total">total</p>`); rec.Body.String() != want {
+		t.Errorf("body\n got %s\nwant %s", rec.Body, want)
 	}
-	if !strings.Contains(rec.Body.String(), "Alpha") || strings.Contains(rec.Body.String(), "Beta") {
+}
+
+func TestMiddlewareRunsTheOuterChainOnce(t *testing.T) {
+	c := &counters{}
+	get(app(t, newStore(), c), "list-row--a list-row--c list-total", true)
+	if got := c.outer.Load(); got != 1 {
+		t.Errorf("outer chain ran %d times, want 1", got)
+	}
+	if got := c.inner.Load(); got != 3 {
+		t.Errorf("middleware inside the batch ran %d times, want once per target (3)", got)
+	}
+}
+
+func TestLoadBatchesQueries(t *testing.T) {
+	s := newStore()
+	h := app(t, s, &counters{})
+	get(h, "list-row--a list-total list-row--c list-row--zz list-row--a", true)
+	if want := [][]string{{"a", "c", "zz"}}; !cmp.Equal(s.queries, want) {
+		t.Errorf("queries %v, want one for every keyed row: %v", s.queries, want)
+	}
+
+	// An ordinary htmx request for one row loads only that row.
+	s.queries = nil
+	req := httptest.NewRequest("GET", "/list", nil)
+	req.Header.Set("HX-Request", "true")
+	req.Header.Set("HX-Target", "tr#list-row--c")
+	req.AddCookie(&http.Cookie{Name: "session", Value: "ok"})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Body.String() != `<tr id="list-row--c"><td>Gamma</td></tr>` {
+		t.Errorf("single request body %s", rec.Body)
+	}
+	if want := [][]string{{"c"}}; !cmp.Equal(s.queries, want) {
+		t.Errorf("queries %v, want %v", s.queries, want)
+	}
+}
+
+func TestMiddlewarePassesThroughWithoutTargets(t *testing.T) {
+	rec := get(app(t, newStore(), &counters{}), "", true)
+	if !strings.Contains(rec.Body.String(), "whole page") {
 		t.Errorf("body %s", rec.Body)
 	}
 }
 
-func TestBatchHandlerBoundsConcurrency(t *testing.T) {
-	var running, peak atomic.Int32
-	slow := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n := running.Add(1)
-		for {
-			p := peak.Load()
-			if n <= p || peak.CompareAndSwap(p, n) {
-				break
-			}
-		}
-		time.Sleep(5 * time.Millisecond)
-		running.Add(-1)
-		fmt.Fprintf(w, `<p id="%s"></p>`, strings.TrimPrefix(r.Header.Get("HX-Target"), "p#"))
-	})
-	items := make([]item, 12)
-	for i := range items {
-		items[i] = item{"/x", fmt.Sprintf("p#i%d", i)}
+func TestMiddlewareBounds(t *testing.T) {
+	ids := strings.Repeat("list-row--a ", 3)
+	if rec := get(app(t, newStore(), &counters{}, Batch{MaxTargets: 2}), ids, true); rec.Code != 400 {
+		t.Errorf("over MaxTargets: %d", rec.Code)
 	}
-	rec := post(t, &Batch{Next: slow, Concurrency: 3}, items, false)
-	if got := strings.Count(rec.Body.String(), "outerMorph"); got != 12 {
-		t.Errorf("rendered %d of 12", got)
+	rec := get(app(t, newStore(), &counters{}, Batch{MaxBytes: 60}), "list-row--a list-row--c", true)
+	if got := rec.Header().Get("Live-Skipped"); got != "list-row--c" {
+		t.Errorf("Live-Skipped = %q", got)
 	}
-	if p := peak.Load(); p > 3 {
-		t.Errorf("peak concurrency %d > 3", p)
+	if !strings.Contains(rec.Body.String(), "Alpha") || strings.Contains(rec.Body.String(), "Gamma") {
+		t.Errorf("body %s", rec.Body)
 	}
 }
 
-func TestBatchItemRequest(t *testing.T) {
-	var got *http.Request
-	spy := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got = r
-		fmt.Fprint(w, `<li id="x"></li>`)
-	})
-	post(t, BatchHandler(spy), []item{{"/files?folder=7", "li#x"}}, true)
-	if got.Method != "GET" || got.URL.Path != "/files" || got.URL.Query().Get("folder") != "7" {
-		t.Errorf("request %s %s", got.Method, got.URL)
+func TestKeys(t *testing.T) {
+	var got []string
+	spy := func(next http.Handler, _ *structpages.PageNode) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if got == nil {
+				got = Keys(r.Context(), listPage.Row)
+			}
+			next.ServeHTTP(w, r)
+		})
 	}
-	for h, want := range map[string]string{"HX-Request": "true", "HX-Request-Type": "partial", "HX-Target": "li#x", "Content-Type": ""} {
-		if v := got.Header.Get(h); v != want {
-			t.Errorf("%s = %q, want %q", h, v, want)
-		}
+	mux := http.NewServeMux()
+	if _, err := structpages.Mount(mux, root{}, "/", "Test",
+		structpages.WithArgs(newStore()),
+		structpages.WithTargetSelector(structpages.HTMXv4RenderTarget),
+		structpages.WithMiddlewares(Middleware, spy)); err != nil {
+		t.Fatal(err)
 	}
-	if c, err := got.Cookie("session"); err != nil || c.Value != "ok" {
-		t.Error("cookie not forwarded")
+	req := httptest.NewRequest("GET", "/list", nil)
+	req.Header.Set(TargetsHeader, "list-row--c list-total list-row--b_2f1 list-row--c")
+	mux.ServeHTTP(httptest.NewRecorder(), req)
+	if want := []string{"c", "b/1"}; !cmp.Equal(got, want) {
+		t.Errorf("Keys = %v, want %v", got, want)
 	}
 }

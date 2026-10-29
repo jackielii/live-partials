@@ -8,66 +8,65 @@ import (
 	_gsxctx "context"
 	_gsxrt "github.com/gsxhq/gsx"
 	"github.com/jackielii/live-partials/live"
-	_gsxf1 "github.com/jackielii/live-partials/live"
 	"github.com/jackielii/structpages"
 	_gsxf0 "github.com/jackielii/structpages"
 	_gsxio "io"
 )
 
-//line cases.gsx:10:1
+//line cases.gsx:11:1
 // Home
 
 type homePage struct{}
 
-//line cases.gsx:14:1
+//line cases.gsx:15:1
 func (p homePage) Page(s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:15:2
+//line cases.gsx:16:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Six cases", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:15:47
+//line cases.gsx:16:47
 			_gsxgw.S("<p class=\"text-stone-600\">Open a case.</p>")
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:16:3
+//line cases.gsx:17:3
 			_gsxgw.S("<p class=\"max-w-prose\">Each case is modelled on a real screen. The amber panel changes data as another user would, the server publishes a frame on the stream, and the page updates itself. The meter counts what this tab spent.</p>")
 			return _gsxgw.Err()
-		}), /*line cases.gsx:15:31*/ s /*line cases.gsx:15:37*/, h))
+		}), /*line cases.gsx:16:31*/ s /*line cases.gsx:16:37*/, h))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:24:1
+//line cases.gsx:25:1
 // Shell: the layout's own live parts are rendered by this route, so no page
 // has to recognise them in its Props.
 
 type shellPage struct{}
 
-func (p shellPage) Props(r *http.Request, s *store) (person, error) {
-	return s.Person(live.Key(r))
+func (p shellPage) Props(t structpages.RenderTarget, s *store) (person, error) {
+	return s.Person(structpages.KeyOf(t))
 }
 
-//line cases.gsx:33:1
+//line cases.gsx:34:1
 func (p shellPage) Page(pr person) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:34:2
-		_gsxgw.Node(ctx, p.DM( /*line cases.gsx:34:12*/ pr))
+//line cases.gsx:35:2
+		_gsxgw.Node(ctx, p.DM( /*line cases.gsx:35:12*/ pr))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:37:1
+//line cases.gsx:38:1
 func (p shellPage) DM(pr person) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:38:2
-		_gsxv0 := /*line cases.gsx:40:5*/ live.On("lab:presence", pr.ID)
+//line cases.gsx:39:2
+		_gsxv0 := /*line cases.gsx:41:5*/ live.On("lab:presence", pr.ID)
 		_gsxgw.S("<li")
 		if !_gsxv0.Has("id") {
-			_gsxv1, _gsxerr := /*line cases.gsx:39:23*/ _gsxf1.ID(ctx, ( /*line cases.gsx:39:7*/ shellPage.DM) /*line cases.gsx:39:27*/, pr.ID)
+			_gsxv1, _gsxerr := /*line cases.gsx:40:23*/ _gsxf0.Key(ctx, ( /*line cases.gsx:40:7*/ shellPage.DM) /*line cases.gsx:40:27*/, pr.ID)
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -80,23 +79,23 @@ func (p shellPage) DM(pr person) _gsxrt.Node {
 		_gsxgw.S("\"")
 		_gsxgw.StyleMerged("", _gsxv0.Style())
 		_gsxgw.Spread(ctx, "li", _gsxv0, _gsxrt.AttrSinks{}, []string{"class", "style", "data-live-url"})
-		_gsxv2, _gsxerr := /*line cases.gsx:41:33*/ _gsxf0.URLFor(ctx, ( /*line cases.gsx:41:18*/ shellPage{}))
+		_gsxv2, _gsxerr := /*line cases.gsx:42:33*/ _gsxf0.URLFor(ctx, ( /*line cases.gsx:42:18*/ shellPage{}))
 		if _gsxerr != nil {
 			return _gsxerr
 		}
 		_gsxgw.S(" data-live-url=\"")
 		_gsxgw.AttrValue(string(_gsxv2))
 		_gsxgw.S("\">")
-//line cases.gsx:43:3
-		_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:43:23*/, pr.Presence))
-//line cases.gsx:43:37
-		_gsxgw.Text(string( /*line cases.gsx:43:39*/ pr.Name))
+//line cases.gsx:44:3
+		_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:44:23*/, pr.Presence))
+//line cases.gsx:44:37
+		_gsxgw.Text(string( /*line cases.gsx:44:39*/ pr.Name))
 		_gsxgw.S("</li>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:46:1
+//line cases.gsx:47:1
 // Case 1: keyed list + aggregate
 
 type seriesPage struct{}
@@ -109,7 +108,7 @@ type seriesProps struct {
 func (p seriesPage) Props(r *http.Request, s *store, t structpages.RenderTarget) (seriesProps, []series, series, seriesSummary, error) {
 	switch {
 	case t.Is(p.Row):
-		row, err := s.OneSeries(live.Key(r))
+		row, err := live.Load(r.Context(), t, p.Row, s.SeriesByID)
 		return seriesProps{}, nil, row, seriesSummary{}, err
 	case t.Is(p.Summary):
 		return seriesProps{}, nil, series{}, s.Summary(), nil
@@ -118,61 +117,61 @@ func (p seriesPage) Props(r *http.Request, s *store, t structpages.RenderTarget)
 	return seriesProps{rows, sum}, rows, series{}, sum, nil
 }
 
-//line cases.gsx:67:1
+//line cases.gsx:68:1
 func (p seriesPage) Page(props seriesProps, s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:68:2
+//line cases.gsx:69:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "Series catalog", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:68:52
+//line cases.gsx:69:52
 			_gsxgw.NodeResult(_gsxrenderseriesPanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:69:3
-			_gsxgw.Node(ctx, p.Content( /*line cases.gsx:69:21*/ props))
+//line cases.gsx:70:3
+			_gsxgw.Node(ctx, p.Content( /*line cases.gsx:70:21*/ props))
 			return _gsxgw.Err()
-		}), /*line cases.gsx:68:36*/ s /*line cases.gsx:68:42*/, h))
+		}), /*line cases.gsx:69:36*/ s /*line cases.gsx:69:42*/, h))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:73:1
+//line cases.gsx:74:1
 func (p seriesPage) Content(props seriesProps) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:74:2
-		_gsxgw.Node(ctx, p.Summary( /*line cases.gsx:74:18*/ props.sum))
 //line cases.gsx:75:2
+		_gsxgw.Node(ctx, p.Summary( /*line cases.gsx:75:18*/ props.sum))
+//line cases.gsx:76:2
 		_gsxgw.S("<table class=\"w-full text-sm\" data-testid=\"series\">")
-//line cases.gsx:76:3
-		_gsxgw.S("<thead>")
-//line cases.gsx:76:10
-		_gsxgw.S("<tr class=\"text-left text-stone-500\">")
-//line cases.gsx:76:47
-		_gsxgw.S("<th>Series</th>")
-//line cases.gsx:76:62
-		_gsxgw.S("<th>Points</th>")
-//line cases.gsx:76:77
-		_gsxgw.S("<th>Status</th></tr></thead>")
 //line cases.gsx:77:3
-		_gsxgw.Node(ctx, p.Rows( /*line cases.gsx:77:17*/ props.rows))
+		_gsxgw.S("<thead>")
+//line cases.gsx:77:10
+		_gsxgw.S("<tr class=\"text-left text-stone-500\">")
+//line cases.gsx:77:47
+		_gsxgw.S("<th>Series</th>")
+//line cases.gsx:77:62
+		_gsxgw.S("<th>Points</th>")
+//line cases.gsx:77:77
+		_gsxgw.S("<th>Status</th></tr></thead>")
+//line cases.gsx:78:3
+		_gsxgw.Node(ctx, p.Rows( /*line cases.gsx:78:17*/ props.rows))
 		_gsxgw.S("</table>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:81:1
+//line cases.gsx:82:1
 func (p seriesPage) Summary(sum seriesSummary) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		var _gsxnum [32]byte
-//line cases.gsx:82:2
-		_gsxv3 := /*line cases.gsx:84:5*/ live.On("lab:series")
+//line cases.gsx:83:2
+		_gsxv3 := /*line cases.gsx:85:5*/ live.On("lab:series")
 		_gsxgw.S("<section")
 		if !_gsxv3.Has("id") {
-			_gsxv4, _gsxerr := /*line cases.gsx:83:29*/ _gsxf0.ID(ctx, ( /*line cases.gsx:83:7*/ seriesPage.Summary))
+			_gsxv4, _gsxerr := /*line cases.gsx:84:29*/ _gsxf0.ID(ctx, ( /*line cases.gsx:84:7*/ seriesPage.Summary))
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -186,47 +185,47 @@ func (p seriesPage) Summary(sum seriesSummary) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv3.Style())
 		_gsxgw.Spread(ctx, "section", _gsxv3, _gsxrt.AttrSinks{}, []string{"class", "style", "data-testid"})
 		_gsxgw.S(" data-testid=\"summary\">")
-//line cases.gsx:88:3
-		_gsxgw.S("<div>Series ")
-//line cases.gsx:88:15
-		_gsxgw.S("<b data-testid=\"sum-count\">")
-//line cases.gsx:88:42
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:88:44*/ sum.Count))
-		_gsxgw.S("</b></div>")
 //line cases.gsx:89:3
-		_gsxgw.S("<div>Points ")
+		_gsxgw.S("<div>Series ")
 //line cases.gsx:89:15
-		_gsxgw.S("<b data-testid=\"sum-points\">")
-//line cases.gsx:89:43
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:89:45*/ sum.Points))
+		_gsxgw.S("<b data-testid=\"sum-count\">")
+//line cases.gsx:89:42
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:89:44*/ sum.Count))
 		_gsxgw.S("</b></div>")
 //line cases.gsx:90:3
-		_gsxgw.S("<div>Stale ")
-//line cases.gsx:90:14
-		_gsxgw.S("<b>")
-//line cases.gsx:90:17
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:90:19*/ sum.Stale))
+		_gsxgw.S("<div>Points ")
+//line cases.gsx:90:15
+		_gsxgw.S("<b data-testid=\"sum-points\">")
+//line cases.gsx:90:43
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:90:45*/ sum.Points))
 		_gsxgw.S("</b></div>")
 //line cases.gsx:91:3
+		_gsxgw.S("<div>Stale ")
+//line cases.gsx:91:14
+		_gsxgw.S("<b>")
+//line cases.gsx:91:17
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:91:19*/ sum.Stale))
+		_gsxgw.S("</b></div>")
+//line cases.gsx:92:3
 		_gsxgw.S("<div>Failing ")
-//line cases.gsx:91:16
+//line cases.gsx:92:16
 		_gsxgw.S("<b data-testid=\"sum-failing\">")
-//line cases.gsx:91:45
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:91:47*/ sum.Failing))
+//line cases.gsx:92:45
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:92:47*/ sum.Failing))
 		_gsxgw.S("</b></div></section>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:95:1
+//line cases.gsx:96:1
 func (p seriesPage) Rows(rows []series) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:96:2
-		_gsxv5 := /*line cases.gsx:96:38*/ live.On("lab:series")
+//line cases.gsx:97:2
+		_gsxv5 := /*line cases.gsx:97:38*/ live.On("lab:series")
 		_gsxgw.S("<tbody")
 		if !_gsxv5.Has("id") {
-			_gsxv6, _gsxerr := /*line cases.gsx:96:32*/ _gsxf0.ID(ctx, ( /*line cases.gsx:96:13*/ seriesPage.Rows))
+			_gsxv6, _gsxerr := /*line cases.gsx:97:32*/ _gsxf0.ID(ctx, ( /*line cases.gsx:97:13*/ seriesPage.Rows))
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -238,26 +237,26 @@ func (p seriesPage) Rows(rows []series) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv5.Style())
 		_gsxgw.Spread(ctx, "tbody", _gsxv5, _gsxrt.AttrSinks{}, []string{"class", "style"})
 		_gsxgw.S(">")
-//line cases.gsx:97:3
-		for /*line cases.gsx:97:9*/ _, s := range rows {
-//line cases.gsx:98:4
-			_gsxgw.Node(ctx, p.Row( /*line cases.gsx:98:14*/ s))
+//line cases.gsx:98:3
+		for /*line cases.gsx:98:9*/ _, s := range rows {
+//line cases.gsx:99:4
+			_gsxgw.Node(ctx, p.Row( /*line cases.gsx:99:14*/ s))
 		}
 		_gsxgw.S("</tbody>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:103:1
+//line cases.gsx:104:1
 func (p seriesPage) Row(s series) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		var _gsxnum [32]byte
-//line cases.gsx:104:2
-		_gsxv7 := /*line cases.gsx:104:41*/ live.On("lab:series", s.ID)
+//line cases.gsx:105:2
+		_gsxv7 := /*line cases.gsx:105:41*/ live.On("lab:series", s.ID)
 		_gsxgw.S("<tr")
 		if !_gsxv7.Has("id") {
-			_gsxv8, _gsxerr := /*line cases.gsx:104:28*/ _gsxf1.ID(ctx, ( /*line cases.gsx:104:10*/ seriesPage.Row) /*line cases.gsx:104:32*/, s.ID)
+			_gsxv8, _gsxerr := /*line cases.gsx:105:28*/ _gsxf0.Key(ctx, ( /*line cases.gsx:105:10*/ seriesPage.Row) /*line cases.gsx:105:32*/, s.ID)
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -269,26 +268,26 @@ func (p seriesPage) Row(s series) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv7.Style())
 		_gsxgw.Spread(ctx, "tr", _gsxv7, _gsxrt.AttrSinks{}, []string{"class", "style"})
 		_gsxgw.S(">")
-//line cases.gsx:105:3
-		_gsxgw.S("<td>")
-//line cases.gsx:105:7
-		_gsxgw.Text(string( /*line cases.gsx:105:9*/ s.Name))
-		_gsxgw.S("</td>")
 //line cases.gsx:106:3
-		_gsxgw.S("<td data-testid=\"points\">")
-//line cases.gsx:106:28
-		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:106:30*/ s.Points))
+		_gsxgw.S("<td>")
+//line cases.gsx:106:7
+		_gsxgw.Text(string( /*line cases.gsx:106:9*/ s.Name))
 		_gsxgw.S("</td>")
 //line cases.gsx:107:3
-		_gsxgw.S("<td data-testid=\"status\">")
+		_gsxgw.S("<td data-testid=\"points\">")
 //line cases.gsx:107:28
-		_gsxgw.Text(string( /*line cases.gsx:107:30*/ s.Status))
+		_gsxgw.IntInto(_gsxnum[:], int64( /*line cases.gsx:107:30*/ s.Points))
+		_gsxgw.S("</td>")
+//line cases.gsx:108:3
+		_gsxgw.S("<td data-testid=\"status\">")
+//line cases.gsx:108:28
+		_gsxgw.Text(string( /*line cases.gsx:108:30*/ s.Status))
 		_gsxgw.S("</td></tr>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:111:1
+//line cases.gsx:112:1
 func seriesPanel() _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
@@ -300,89 +299,95 @@ func _gsxrenderseriesPanel(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer) error {
 	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
 		return _gsxerr
 	}
-//line cases.gsx:112:2
+//line cases.gsx:113:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "series-touch", "s3", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Change series s3")
 		return _gsxgw.Err()
 	})))
-//line cases.gsx:113:2
+//line cases.gsx:114:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "series-touch", "s7", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Change series s7")
 		return _gsxgw.Err()
 	})))
+//line cases.gsx:115:2
+	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "series-touch", "s2 s5 s8", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
+		_gsxgw := _gsxrt.W(_gsxw)
+		_gsxgw.S("Change series s2, s5 and s8 together")
+		return _gsxgw.Err()
+	})))
 	return _gsxgw.Err()
 }
 
-//line cases.gsx:116:1
+//line cases.gsx:118:1
 // Case 2: one person in many places
 
 type peoplePage struct{}
 
 func (p peoplePage) Props(r *http.Request, s *store, t structpages.RenderTarget) (person, error) {
 	if t.Is(p.Row) || t.Is(p.Card) {
-		return s.Person(live.Key(r))
+		return s.Person(structpages.KeyOf(t))
 	}
 	return person{}, nil
 }
 
-//line cases.gsx:127:1
+//line cases.gsx:129:1
 func (p peoplePage) Page(s *store, h *hub) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:128:2
+//line cases.gsx:130:2
 		_gsxgw.NodeResult(_gsxrenderLayout(ctx, _gsxgw, "People", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:128:44
+//line cases.gsx:130:44
 			_gsxgw.NodeResult(_gsxrenderpeoplePanel(ctx, _gsxgw))
 			return _gsxgw.Err()
 		}), _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 			_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:129:3
+//line cases.gsx:131:3
 			_gsxgw.S("<div class=\"flex gap-4\">")
-//line cases.gsx:130:4
-			for /*line cases.gsx:130:10*/ _, id := range []string{"p1", "p2"} {
-//line cases.gsx:131:5
-				if /*line cases.gsx:131:10*/ pr, err := s.Person(id); err == nil {
-//line cases.gsx:132:6
-					_gsxgw.Node(ctx, p.Card( /*line cases.gsx:132:18*/ pr))
+//line cases.gsx:132:4
+			for /*line cases.gsx:132:10*/ _, id := range []string{"p1", "p2"} {
+//line cases.gsx:133:5
+				if /*line cases.gsx:133:10*/ pr, err := s.Person(id); err == nil {
+//line cases.gsx:134:6
+					_gsxgw.Node(ctx, p.Card( /*line cases.gsx:134:18*/ pr))
 				}
 			}
 			_gsxgw.S("</div>")
-//line cases.gsx:136:3
+//line cases.gsx:138:3
 			_gsxgw.S("<table class=\"w-full text-sm\" data-testid=\"directory\">")
-//line cases.gsx:137:4
+//line cases.gsx:139:4
 			_gsxgw.S("<thead>")
-//line cases.gsx:137:11
+//line cases.gsx:139:11
 			_gsxgw.S("<tr class=\"text-left text-stone-500\">")
-//line cases.gsx:137:48
+//line cases.gsx:139:48
 			_gsxgw.S("<th>Name</th>")
-//line cases.gsx:137:61
+//line cases.gsx:139:61
 			_gsxgw.S("<th>Presence</th></tr></thead>")
-//line cases.gsx:138:4
+//line cases.gsx:140:4
 			_gsxgw.S("<tbody>")
-//line cases.gsx:139:5
-			for /*line cases.gsx:139:11*/ _, pr := range s.People() {
-//line cases.gsx:140:6
-				_gsxgw.Node(ctx, p.Row( /*line cases.gsx:140:17*/ pr))
+//line cases.gsx:141:5
+			for /*line cases.gsx:141:11*/ _, pr := range s.People() {
+//line cases.gsx:142:6
+				_gsxgw.Node(ctx, p.Row( /*line cases.gsx:142:17*/ pr))
 			}
 			_gsxgw.S("</tbody></table>")
 			return _gsxgw.Err()
-		}), /*line cases.gsx:128:28*/ s /*line cases.gsx:128:34*/, h))
+		}), /*line cases.gsx:130:28*/ s /*line cases.gsx:130:34*/, h))
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:147:1
+//line cases.gsx:149:1
 func (p peoplePage) Row(pr person) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:148:2
-		_gsxv9 := /*line cases.gsx:148:42*/ live.On("lab:presence", pr.ID)
+//line cases.gsx:150:2
+		_gsxv9 := /*line cases.gsx:150:42*/ live.On("lab:presence", pr.ID)
 		_gsxgw.S("<tr")
 		if !_gsxv9.Has("id") {
-			_gsxv10, _gsxerr := /*line cases.gsx:148:28*/ _gsxf1.ID(ctx, ( /*line cases.gsx:148:10*/ peoplePage.Row) /*line cases.gsx:148:32*/, pr.ID)
+			_gsxv10, _gsxerr := /*line cases.gsx:150:28*/ _gsxf0.Key(ctx, ( /*line cases.gsx:150:10*/ peoplePage.Row) /*line cases.gsx:150:32*/, pr.ID)
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -394,31 +399,31 @@ func (p peoplePage) Row(pr person) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv9.Style())
 		_gsxgw.Spread(ctx, "tr", _gsxv9, _gsxrt.AttrSinks{}, []string{"class", "style"})
 		_gsxgw.S(">")
-//line cases.gsx:149:3
+//line cases.gsx:151:3
 		_gsxgw.S("<td>")
-//line cases.gsx:149:7
-		_gsxgw.Text(string( /*line cases.gsx:149:9*/ pr.Name))
+//line cases.gsx:151:7
+		_gsxgw.Text(string( /*line cases.gsx:151:9*/ pr.Name))
 		_gsxgw.S("</td>")
-//line cases.gsx:150:3
+//line cases.gsx:152:3
 		_gsxgw.S("<td class=\"flex items-center gap-2\">")
-//line cases.gsx:150:39
-		_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:150:59*/, pr.Presence))
-//line cases.gsx:150:73
-		_gsxgw.Text(string( /*line cases.gsx:150:75*/ pr.Presence))
+//line cases.gsx:152:39
+		_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:152:59*/, pr.Presence))
+//line cases.gsx:152:73
+		_gsxgw.Text(string( /*line cases.gsx:152:75*/ pr.Presence))
 		_gsxgw.S("</td></tr>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:154:1
+//line cases.gsx:156:1
 func (p peoplePage) Card(pr person) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
-//line cases.gsx:155:2
-		_gsxv11 := /*line cases.gsx:157:5*/ live.On("lab:presence", pr.ID)
+//line cases.gsx:157:2
+		_gsxv11 := /*line cases.gsx:159:5*/ live.On("lab:presence", pr.ID)
 		_gsxgw.S("<article")
 		if !_gsxv11.Has("id") {
-			_gsxv12, _gsxerr := /*line cases.gsx:156:26*/ _gsxf1.ID(ctx, ( /*line cases.gsx:156:7*/ peoplePage.Card) /*line cases.gsx:156:30*/, pr.ID)
+			_gsxv12, _gsxerr := /*line cases.gsx:158:26*/ _gsxf0.Key(ctx, ( /*line cases.gsx:158:7*/ peoplePage.Card) /*line cases.gsx:158:30*/, pr.ID)
 			if _gsxerr != nil {
 				return _gsxerr
 			}
@@ -432,23 +437,23 @@ func (p peoplePage) Card(pr person) _gsxrt.Node {
 		_gsxgw.StyleMerged("", _gsxv11.Style())
 		_gsxgw.Spread(ctx, "article", _gsxv11, _gsxrt.AttrSinks{}, []string{"class", "style"})
 		_gsxgw.S(">")
-//line cases.gsx:160:3
+//line cases.gsx:162:3
 		_gsxgw.S("<h3 class=\"flex items-center gap-2 font-semibold\">")
-//line cases.gsx:160:53
-		_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:160:73*/, pr.Presence))
-//line cases.gsx:160:87
-		_gsxgw.Text(string( /*line cases.gsx:160:89*/ pr.Name))
+//line cases.gsx:162:53
+		_gsxgw.NodeResult(_gsxrenderpresenceDot(ctx, _gsxgw /*line cases.gsx:162:73*/, pr.Presence))
+//line cases.gsx:162:87
+		_gsxgw.Text(string( /*line cases.gsx:162:89*/ pr.Name))
 		_gsxgw.S("</h3>")
-//line cases.gsx:161:3
+//line cases.gsx:163:3
 		_gsxgw.S("<p class=\"text-xs text-stone-500\">Currently ")
-//line cases.gsx:161:47
-		_gsxgw.Text(string( /*line cases.gsx:161:49*/ pr.Presence))
+//line cases.gsx:163:47
+		_gsxgw.Text(string( /*line cases.gsx:163:49*/ pr.Presence))
 		_gsxgw.S("</p></article>")
 		return _gsxgw.Err()
 	})
 }
 
-//line cases.gsx:165:1
+//line cases.gsx:167:1
 func peoplePanel() _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
@@ -460,13 +465,13 @@ func _gsxrenderpeoplePanel(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer) error {
 	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
 		return _gsxerr
 	}
-//line cases.gsx:166:2
+//line cases.gsx:168:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "presence", "p1", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Ada changes presence")
 		return _gsxgw.Err()
 	})))
-//line cases.gsx:167:2
+//line cases.gsx:169:2
 	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "presence", "p4", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
 		_gsxgw.S("Edsger changes presence")

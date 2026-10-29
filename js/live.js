@@ -6,10 +6,11 @@
 // (3) escalates to the enclosing region past data-live-max (8) or half of
 // the region's keyed elements, (4) sends ids that match nothing to regions
 // marked data-live-insert, (5) batches every refetch of an animation frame
-// into one POST, (6) leaves elements with unsaved input alone and reveals
-// their [data-live-stale] notice, and (7) on resync refetches every outermost
-// live element. The server answers with <hx-partial> fragments that htmx
-// swaps; a 404 arrives as a delete.
+// into one GET per page URL, listing the element ids in X-Live-Targets,
+// (6) leaves elements with unsaved input alone and reveals their
+// [data-live-stale] notice, and (7) on resync refetches every outermost live
+// element. The page's live middleware answers with <hx-partial> fragments
+// that htmx swaps; a 404 arrives as a delete.
 
 const quote = (s) => `"${s.replace(/["\\]/g, "\\$&")}"`;
 const topicSelector = (topic) => `[data-live~=${quote(topic)}]`;
@@ -94,13 +95,11 @@ function spare(els, root, topic, ids) {
   return { fetch, stale };
 }
 
-function identifier(el) {
-  return `${el.tagName.toLowerCase()}#${el.id}`;
-}
+export const TARGETS_HEADER = "X-Live-Targets";
 
 // createDispatcher holds the batching state. It is separate from start so
 // tests can drive it without a stream.
-export function createDispatcher({ root = document, htmx, endpoint = "/live", maxItems = 64, schedule } = {}) {
+export function createDispatcher({ root = document, htmx, maxTargets = 64, schedule } = {}) {
   const pending = new Map();
   let scheduled = false;
   let inflight = false;
@@ -118,8 +117,7 @@ export function createDispatcher({ root = document, htmx, endpoint = "/live", ma
       console.warn("live: a live element needs an id to be refetched", el);
       return;
     }
-    const url = el.dataset.liveUrl || location.pathname + location.search;
-    pending.set(el.id, { url, target: identifier(el) });
+    pending.set(el.id, el.dataset.liveUrl || location.pathname + location.search);
     kick();
   }
 
@@ -129,19 +127,29 @@ export function createDispatcher({ root = document, htmx, endpoint = "/live", ma
     tick(flush);
   }
 
+  // flush sends one GET per page URL, each naming at most maxTargets ids;
+  // the rest wait for the next batch.
   async function flush() {
     scheduled = false;
     if (inflight || pending.size === 0) return;
-    const items = [...pending.values()].slice(0, maxItems);
-    for (const it of items) pending.delete(it.target.slice(it.target.indexOf("#") + 1));
+    const byURL = new Map();
+    for (const [id, url] of pending) {
+      const ids = byURL.get(url) ?? byURL.set(url, []).get(url);
+      if (ids.length < maxTargets) ids.push(id);
+    }
+    for (const ids of byURL.values()) ids.forEach((id) => pending.delete(id));
     inflight = true;
     try {
-      await htmx.ajax("POST", endpoint, {
-        source: root.body ?? root,
-        target: root.body ?? root,
-        swap: "none",
-        values: { live: JSON.stringify(items) },
-      });
+      await Promise.all(
+        [...byURL].map(([url, ids]) =>
+          htmx.ajax("GET", url, {
+            source: root.body ?? root,
+            target: root.body ?? root,
+            swap: "none",
+            headers: { [TARGETS_HEADER]: ids.join(" ") },
+          }),
+        ),
+      );
     } finally {
       inflight = false;
       kick();
@@ -177,9 +185,9 @@ export function createDispatcher({ root = document, htmx, endpoint = "/live", ma
       }
       queue(el);
     },
-    requeue(targets) {
-      for (const t of targets) {
-        const el = root.getElementById?.(t.slice(t.indexOf("#") + 1));
+    requeue(ids) {
+      for (const id of ids) {
+        const el = root.getElementById?.(id);
         if (el) queue(el);
       }
     },
@@ -192,10 +200,10 @@ export function createDispatcher({ root = document, htmx, endpoint = "/live", ma
 }
 
 // start wires the dispatcher to the page: frames from the SSE element
-// matching stream, refresh buttons ([data-live-refresh]) and the batch
-// endpoint's Live-Skipped header. It returns a function that unwires it.
-export function start({ stream = "#stream", endpoint = "/live", htmx = window.htmx } = {}) {
-  const d = createDispatcher({ htmx, endpoint });
+// matching stream, refresh buttons ([data-live-refresh]) and the Live-Skipped
+// header of its own requests. It returns a function that unwires it.
+export function start({ stream = "#stream", htmx = window.htmx } = {}) {
+  const d = createDispatcher({ htmx });
   const onMessage = (e) => {
     if (!e.target.matches?.(stream)) return;
     const { event, data } = e.detail.message;
@@ -221,7 +229,7 @@ export function start({ stream = "#stream", endpoint = "/live", htmx = window.ht
   };
   const onResponse = (e) => {
     const ctx = e.detail.ctx;
-    if (ctx.request?.action !== endpoint) return;
+    if (!ctx.request?.headers?.[TARGETS_HEADER]) return;
     const skipped = ctx.response?.headers?.get("Live-Skipped");
     if (skipped) d.requeue(skipped.split(" "));
   };

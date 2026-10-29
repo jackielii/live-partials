@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -51,13 +52,14 @@ func newHandler(v *vite.Vite) (http.Handler, error) {
 			slog.DebugContext(r.Context(), "stream ended", "err", err)
 		}
 	})
-	mux.Handle("POST /live", live.BatchHandler(mux))
 	if !v.Dev() {
 		mux.Handle("/static/", v.StaticHandler())
 	}
 	if _, err := structpages.Mount(mux, pages{}, "/", "Lab",
-		structpages.WithArgs(s, h),
-		structpages.WithTargetSelector(live.Selector(structpages.HTMXv4RenderTarget)),
+		structpages.WithArgs(h),
+		structpages.WithRequestArgs(s.forRequest),
+		structpages.WithTargetSelector(structpages.HTMXv4RenderTarget),
+		structpages.WithMiddlewares(live.Middleware),
 		structpages.WithErrorHandler(errorHandler),
 	); err != nil {
 		return nil, err
@@ -66,7 +68,7 @@ func newHandler(v *vite.Vite) (http.Handler, error) {
 }
 
 func errorHandler(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, errNotFound) {
+	if errors.Is(err, errNotFound) || errors.Is(err, live.ErrNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -77,7 +79,9 @@ func errorHandler(w http.ResponseWriter, r *http.Request, err error) {
 type simAction struct{}
 
 func (simAction) ServeHTTP(w http.ResponseWriter, r *http.Request, s *store, h *hub) error {
-	publish := func(topic string, ids ...string) { h.Publish(context.WithoutCancel(r.Context()), everyone, topic, ids...) }
+	publish := func(topic string, ids ...string) {
+		h.Publish(context.WithoutCancel(r.Context()), everyone, topic, ids...)
+	}
 	id := r.FormValue("id")
 	var err error
 	switch a := r.PathValue("action"); a {
@@ -85,8 +89,14 @@ func (simAction) ServeHTTP(w http.ResponseWriter, r *http.Request, s *store, h *
 		s.reset()
 		publish("resync")
 	case "series-touch":
-		if err = s.TouchSeries(id); err == nil {
-			publish("lab:series", id)
+		ids := strings.Fields(id)
+		for _, id := range ids {
+			if err = s.TouchSeries(id); err != nil {
+				break
+			}
+		}
+		if err == nil {
+			publish("lab:series", ids...)
 		}
 	case "presence":
 		if err = s.CyclePresence(id); err == nil {
