@@ -1,0 +1,4 @@
+[filters]
+url    = "github.com/jackielii/structpages.URLFor"
+id     = "github.com/jackielii/structpages.ID"
+target = "github.com/jackielii/structpages.IDTarget"

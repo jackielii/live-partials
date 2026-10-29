@@ -1,0 +1,23 @@
+{
+  "name": "live-partials",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "go tool gsx dev -build 'go build -o tmp/lab ./examples/lab' -run tmp/lab",
+    "build": "vite build && touch examples/lab/dist/.gitkeep",
+    "e2e:serve": "npm run build && go tool gsx generate . && GO_PORT=8899 go run ./examples/lab",
+    "e2e": "playwright test -c e2e",
+    "test:js": "node --test js/"
+  },
+  "devDependencies": {
+    "@gsxhq/vite-plugin-gsx": "^0.11.4",
+    "@playwright/test": "^1.62.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "jsdom": "^27.0.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "htmx.org": "4.0.0"
+  }
+}

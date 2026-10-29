@@ -1,0 +1,74 @@
+{
+  "1 one row of ten": {
+    "frames": 1,
+    "requests": 2,
+    "bytes": 668,
+    "swaps": 2,
+    "server": 0.07,
+    "swapms": 0.6,
+    "urls": 2
+  },
+  "2 one person, three places": {
+    "frames": 1,
+    "requests": 3,
+    "bytes": 1056,
+    "swaps": 3,
+    "server": 0.1,
+    "swapms": 1,
+    "urls": 3
+  },
+  "3 neighbour row edited": {
+    "frames": 1,
+    "requests": 1,
+    "bytes": 819,
+    "swaps": 1,
+    "server": 0.06,
+    "swapms": 0.9,
+    "urls": 1
+  },
+  "4 upload, then delete": {
+    "frames": 2,
+    "requests": 2,
+    "bytes": 1621,
+    "swaps": 2,
+    "server": 0.05,
+    "swapms": 0.6,
+    "urls": 1
+  },
+  "5 burst of 50": {
+    "frames": 50,
+    "requests": 50,
+    "bytes": 9514,
+    "swaps": 50,
+    "server": 0.76,
+    "swapms": 3.7,
+    "urls": 50
+  },
+  "6 progress tick": {
+    "frames": 1,
+    "requests": 1,
+    "bytes": 313,
+    "swaps": 1,
+    "server": 0.05,
+    "swapms": 0.7,
+    "urls": 1
+  },
+  "6 status change": {
+    "frames": 1,
+    "requests": 2,
+    "bytes": 1085,
+    "swaps": 2,
+    "server": 0.09,
+    "swapms": 0.9,
+    "urls": 2
+  },
+  "resync on connect": {
+    "frames": 0,
+    "requests": 1,
+    "bytes": 424,
+    "swaps": 1,
+    "server": 0.03,
+    "swapms": 0.7,
+    "urls": 1
+  }
+}

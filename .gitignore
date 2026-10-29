@@ -1,0 +1,8 @@
+/node_modules
+/examples/lab/dist/*
+!/examples/lab/dist/.gitkeep
+/tmp/
+/test-results/
+/playwright-report/
+.env
+/lab
