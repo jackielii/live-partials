@@ -53,11 +53,43 @@ case t.Is(p.Row):
 	row, err := store.Row(ctx, string(key))
 ```
 
+## Batch: several instances in one request
+
+`RenderComponent(a, b, …)` already renders several components into one response, for example as
+several `<hx-partial>` blocks. A push update often names many instances of one component (fifty
+changed rows). Rendering them one request per instance costs one Props call and one database query
+each. That is invisible with an in-memory store, but it is the real cost against a database.
+Batching the data load means the request names every instance it needs, and Props loads them in one
+query.
+
+- **Several targets per request.** `HX-Target` carries one target. A batch request carries its list in
+  another header or form field, and the selector resolves each one. `t.Is(p.Row)` holds when any
+  target is a `Row`.
+- **A list of keys.** The injected key type is a list: `structpages.TargetKeys` holds every key the
+  request names for the matched component, and has a single key in the common case. If a list doesn't
+  fit the DI shape, `t.Keys(p.Row)` would do the same job.
+- **Props renders them together:** it loads every key in one query and returns
+  `RenderComponent(partial(p.Row(a)), partial(p.Row(b)), …)`.
+- **Opt in.** A page that doesn't handle a list still works: the caller, such as the live dispatcher's
+  batch endpoint, falls back to one request per instance.
+
+```go
+case t.Is(p.Row):
+	rows, err := store.Rows(ctx, keys) // one query for every requested instance
+	parts := make([]structpages.Renderer, len(rows))
+	for i, row := range rows {
+		parts[i] = partial(p.Row(row)) // <hx-partial hx-target="#…" hx-swap="outerMorph">
+	}
+	return props, structpages.RenderComponent(parts[0], parts[1:]...)
+```
+
 ## Open questions for structpages
 
 - **The separator and escaping alphabet.** The lab uses `--` and `[A-Za-z0-9_-]`, with any other
   byte written as `_XX`.
 - **Several keys per instance**, such as a cell identified by row and column. They could be a single
-  composite key, joined by the app.
+  composite key, joined by the app. This is separate from a list of instances, covered above.
+- **How a batch request names its targets:** the header name and format, and the most targets one
+  request may carry.
 - **Who answers 404 for an unknown key.** Props can return a not-found error as today, or structpages
   can provide a helper for it.
