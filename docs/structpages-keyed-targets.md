@@ -1,5 +1,10 @@
 # structpages: keyed component targets — problem and proposal
 
+**Status:** shipped in structpages v0.11.0 as `Key`, `KeyTarget`, `KeyOf(t)` and the `key` /
+`keytarget` filters (Props reads the key with `KeyOf(t)` rather than an injected `TargetKey`). The
+batch section below is implemented as `live.Middleware` and `live.Load`. This file is kept as the
+record of the problem; library-proposals.md has what remains.
+
 ## Problem
 
 A page component is often rendered once per item: a table row, a card, a person's dot. To re-render
