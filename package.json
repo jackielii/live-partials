@@ -4,8 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "go tool gsx dev -build 'go build -o tmp/lab ./examples/lab' -run tmp/lab",
+    "dev:datastar": "LAB_APP=datastar go tool gsx dev -build 'go build -o tmp/datastar ./examples/datastar' -run tmp/datastar",
     "build": "vite build && touch examples/lab/dist/.gitkeep",
-    "e2e:serve": "npm run build && go tool gsx generate . && GO_PORT=8899 go run ./examples/lab",
+    "build:datastar": "LAB_APP=datastar vite build && touch examples/datastar/dist/.gitkeep",
+    "e2e:serve": "npm run build && go tool gsx generate ./examples/lab && GO_PORT=8899 go run ./examples/lab",
+    "e2e:serve:datastar": "npm run build:datastar && go tool gsx generate ./examples/datastar && GO_PORT=8898 go run ./examples/datastar",
     "e2e": "playwright test -c e2e",
     "test:js": "node --test --test-timeout=5000 js/*.test.js"
   },

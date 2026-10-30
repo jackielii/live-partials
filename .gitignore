@@ -1,8 +1,11 @@
 /node_modules
 /examples/lab/dist/*
 !/examples/lab/dist/.gitkeep
+/examples/datastar/dist/*
+!/examples/datastar/dist/.gitkeep
 /tmp/
 /test-results/
 /playwright-report/
 .env
 /lab
+/datastar
