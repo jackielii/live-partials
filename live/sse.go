@@ -1,27 +1,35 @@
 package live
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
-// ServeSSE streams viewer's frames until the request ends. It opens with a
-// `: connected` comment and a `resync` event, because frames published
-// between the page render and this connection are lost; the dispatcher
-// answers resync by refetching every live element. When the request carries
-// ?since=<Since at render> and nothing was published since, the resync is
-// skipped. The query stays the same on reconnect, so a reconnect after
-// anything was published still resyncs.
+// ServeSSE streams viewer's frames until the request ends or the hub ends
+// the subscription (End). It opens with a `: connected` comment and a
+// `resync` event, because frames published between the page render and this
+// connection are lost; the dispatcher answers resync by refetching every live
+// element and applying the current values it carries (Current). When the
+// request carries ?since=<Since at render> and nothing was published since,
+// the resync is skipped. The query stays the same on reconnect, so a
+// reconnect after anything was published still resyncs.
+//
+// Fragments (Hub.Fragment) are rendered here, in the subscriber's own
+// goroutine, as viewer and with r's context; serve the stream from a
+// structpages route so that context carries the page tree.
 //
 // A host with a durable source (an outbox with ids, replayed from
 // Last-Event-ID) writes its own handler instead: replay its rows with
-// WriteEvent, then Subscribe and select over both its feed and
-// Subscription.Ready, writing topic frames with WriteFrame. Topic frames carry
-// no id, so they never move the browser's Last-Event-ID.
+// WriteEvent, then Subscribe and select over its feed, Subscription.Ready and
+// Subscription.Ended, writing frames with WriteFrame(w, f, h.Render(ctx,
+// viewer, f)...) and resyncs with WriteResync. Topic frames carry no id, so
+// they never move the browser's Last-Event-ID.
 func (h *Hub[V]) ServeSSE(w http.ResponseWriter, r *http.Request, viewer V) error {
 	sub := h.Subscribe(viewer)
 	defer sub.Close()
@@ -40,12 +48,13 @@ func (h *Hub[V]) ServeSSE(w http.ResponseWriter, r *http.Request, viewer V) erro
 		return rc.Flush()
 	}
 
+	ctx := r.Context()
 	current := r.URL.Query().Get("since") == h.Since()
 	if err := write(func() error {
 		if _, err := io.WriteString(w, ": connected\n\n"); err != nil || current {
 			return err
 		}
-		return WriteEvent(w, "resync", "", "{}")
+		return WriteResync(w, h.CurrentValues(ctx, viewer))
 	}); err != nil {
 		return err
 	}
@@ -54,7 +63,9 @@ func (h *Hub[V]) ServeSSE(w http.ResponseWriter, r *http.Request, viewer V) erro
 	defer beat.Stop()
 	for {
 		select {
-		case <-r.Context().Done():
+		case <-ctx.Done():
+			return nil
+		case <-sub.Ended():
 			return nil
 		case <-beat.C:
 			if err := write(func() error { _, err := io.WriteString(w, ": ping\n\n"); return err }); err != nil {
@@ -64,10 +75,10 @@ func (h *Hub[V]) ServeSSE(w http.ResponseWriter, r *http.Request, viewer V) erro
 			frames, resync := sub.Take()
 			if err := write(func() error {
 				if resync {
-					return WriteEvent(w, "resync", "", "{}")
+					return WriteResync(w, h.CurrentValues(ctx, viewer))
 				}
 				for _, f := range frames {
-					if err := WriteFrame(w, f); err != nil {
+					if err := WriteFrame(w, f, h.Render(ctx, viewer, f)...); err != nil {
 						return err
 					}
 				}
@@ -79,19 +90,36 @@ func (h *Hub[V]) ServeSSE(w http.ResponseWriter, r *http.Request, viewer V) erro
 	}
 }
 
-// WriteFrame writes a topic frame as an SSE event named after the topic,
-// with data {"ids":[…]} or {} for the whole topic.
-func WriteFrame(w io.Writer, f Frame) error {
-	data := []byte("{}")
-	if len(f.IDs) > 0 {
-		var err error
-		if data, err = json.Marshal(struct {
-			IDs []string `json:"ids"`
-		}{f.IDs}); err != nil {
-			return err
-		}
+// WriteFrame writes a frame as an SSE event named after the topic, with data
+// {"ids":[…]} ({} for the whole topic), {"values":{key:value,…}} for a value
+// frame, and "fragments":[{"target":id,"html":…},…] beside the ids when
+// fragments are given.
+func WriteFrame(w io.Writer, f Frame, fragments ...Fragment) error {
+	var data bytes.Buffer
+	enc := json.NewEncoder(&data)
+	// The data is read by JSON.parse, never placed in HTML: escaping <, >
+	// and & would add five bytes to each in every fragment.
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(struct {
+		IDs       []string          `json:"ids,omitempty"`
+		Values    map[string]string `json:"values,omitempty"`
+		Fragments []Fragment        `json:"fragments,omitempty"`
+	}{f.IDs, f.Values, fragments}); err != nil {
+		return err
 	}
-	return WriteEvent(w, f.Topic, "", string(data))
+	return WriteEvent(w, f.Topic, "", strings.TrimSuffix(data.String(), "\n"))
+}
+
+// WriteResync writes the resync event, with data {} or
+// {"values":{topic:{key:value,…},…}} carrying the current values to apply.
+func WriteResync(w io.Writer, values map[string]map[string]string) error {
+	data, err := json.Marshal(struct {
+		Values map[string]map[string]string `json:"values,omitempty"`
+	}{values})
+	if err != nil {
+		return err
+	}
+	return WriteEvent(w, "resync", "", string(data))
 }
 
 // WriteEvent writes one SSE event. An empty id leaves the browser's

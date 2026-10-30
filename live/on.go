@@ -14,3 +14,28 @@ func On(topic string, key ...string) gsx.Attrs {
 	}
 	return a
 }
+
+// Value marks an element as a listener of a value topic: value frames for key
+// set its data-value attribute, which CSS styles. current is the value at
+// render. Any number of elements may listen to the same key:
+//
+//	<span class="data-[value=idle]:bg-amber-400" { live.Value("presence", p.ID, p.Presence)... }></span>
+func Value(topic, key, current string) gsx.Attrs {
+	return gsx.Attrs{
+		{Key: "data-live-value", Value: topic},
+		{Key: "data-live-value-key", Value: key},
+		{Key: "data-value", Value: current},
+	}
+}
+
+// ValueText marks an element whose text is a value topic's value for key:
+// value frames replace its text content.
+//
+//	<span { live.ValueText("presence", p.ID)... }>{ p.Presence }</span>
+func ValueText(topic, key string) gsx.Attrs {
+	return gsx.Attrs{
+		{Key: "data-live-value", Value: topic},
+		{Key: "data-live-value-key", Value: key},
+		{Key: "data-live-value-into", Value: "text"},
+	}
+}

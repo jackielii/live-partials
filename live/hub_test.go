@@ -40,7 +40,7 @@ func TestCoalescing(t *testing.T) {
 				ctx := context.Background()
 
 				h.Publish(ctx, everyone, "t", "a")
-				if got := take(s); !cmp.Equal(got, []Frame{{"t", []string{"a"}}}) {
+				if got := take(s); !cmp.Equal(got, []Frame{{Topic: "t", IDs: []string{"a"}}}) {
 					t.Fatalf("first signal should go at once, got %v", got)
 				}
 				for _, ids := range tt.burst {
@@ -85,7 +85,7 @@ func TestCoalescingIsPerTopicAndPerSubscriber(t *testing.T) {
 		if got := take(a); len(got) != 0 {
 			t.Errorf("a was not in the audience of the held frame, got %v", got)
 		}
-		if got := take(b); !cmp.Equal(got, []Frame{{"x", []string{"2"}}}) {
+		if got := take(b); !cmp.Equal(got, []Frame{{Topic: "x", IDs: []string{"2"}}}) {
 			t.Errorf("b: got %v", got)
 		}
 	})

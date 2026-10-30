@@ -1,19 +1,31 @@
-// live.js: turns stream frames into refetches of the live elements that show
-// what changed. An element is live when it carries data-live="<topic>" and,
-// for one keyed instance, data-live-key="<key>" (live.On on the server).
+// live.js: applies stream frames to the elements that show what changed. An
+// element is live when it carries data-live="<topic>" and, for one keyed
+// instance, data-live-key="<key>" (live.On on the server). A frame is a
+// signal ({"ids":[…]}), a value frame ({"values":{key:value}}) or a signal
+// carrying rendered fragments ({"ids":[…],"fragments":[{target,html}]}).
 //
-// For each frame it (1) matches elements, (2) keeps only the outermost,
+// Value frames are written into every value listener of the topic and key
+// (data-live-value="<topic>" data-live-value-key="<key>", live.Value): into
+// its data-value attribute, or its text with data-live-value-into="text".
+// Nothing is fetched. Their keys are also a signal for data-live elements.
+//
+// Fragments are morphed into the element with the fragment's id when the page
+// has it (and ignored when not); a planned refetch the fragments cover is
+// dropped. Whatever no fragment covers is handled as a signal: for each frame
+// it (1) matches elements, (2) keeps only the outermost,
 // (3) escalates to the enclosing region past data-live-max (8) or half of
 // the region's keyed elements, (4) sends ids that match nothing to regions
 // marked data-live-insert, (5) batches every refetch of an animation frame
 // into one GET per page URL, listing the element ids in X-Live-Targets,
 // (6) leaves elements with unsaved input alone and reveals their
 // [data-live-stale] notice, and (7) on resync refetches every outermost live
-// element. The page's live middleware answers with <hx-partial> fragments
-// that htmx swaps; a 404 arrives as a delete.
+// element and applies the current values the resync carries. The page's live
+// middleware answers with <hx-partial> fragments that htmx swaps; a 404
+// arrives as a delete.
 
 const quote = (s) => `"${s.replace(/["\\]/g, "\\$&")}"`;
 const topicSelector = (topic) => `[data-live~=${quote(topic)}]`;
+const valueSelector = (topic) => `[data-live-value~=${quote(topic)}]`;
 const isKeyed = (el) => el.hasAttribute("data-live-key");
 
 // outermost drops every element that sits inside another one of els and
@@ -95,6 +107,34 @@ function spare(els, root, topic, ids) {
   return { fetch, stale };
 }
 
+// setValues writes values (key → value) into every value listener of topic
+// whose key has one, and returns how many listeners it set. A listener
+// writes into its text (data-live-value-into="text") or into a data- or
+// aria- attribute it names (data-value by default); other names are refused,
+// so a value can never become a URL or a handler.
+export function setValues(root, topic, values) {
+  let n = 0;
+  for (const el of root.querySelectorAll(valueSelector(topic))) {
+    const key = el.dataset.liveValueKey ?? "";
+    if (!Object.hasOwn(values, key)) continue;
+    const v = String(values[key]);
+    const into = el.dataset.liveValueInto || "data-value";
+    if (into === "text") {
+      if (el.textContent !== v) el.textContent = v;
+    } else if (/^(data|aria)-/.test(into)) {
+      if (el.getAttribute(into) !== v) el.setAttribute(into, v);
+    } else {
+      console.warn("live: data-live-value-into must be text, data-* or aria-*", el);
+      continue;
+    }
+    n++;
+  }
+  return n;
+}
+
+const cssID = (id) => (globalThis.CSS?.escape ? CSS.escape(id) : id.replace(/[^\w-]/g, "\\$&"));
+const attr = (s) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+
 export const TARGETS_HEADER = "X-Live-Targets";
 
 // createDispatcher holds the batching state. It is separate from start so
@@ -168,10 +208,49 @@ export function createDispatcher({ root = document, htmx, maxTargets = 64, sched
     fetch.forEach(queue);
   }
 
+  // push morphs each fragment into the element with its id, in one htmx swap
+  // so the page's swap events and processing apply. Fragments whose element
+  // is absent are ignored; one inside a planned refetch is left to it (outer
+  // wins); a dirty element is spared as for a refetch. It returns the planned
+  // refetches no fragment covers.
+  function push(planned, fragments, topic, ids) {
+    const html = new Map();
+    for (const f of fragments) {
+      const el = root.getElementById?.(f.target) ?? root.querySelector?.(`#${cssID(f.target)}`);
+      if (el) html.set(el, f.html);
+    }
+    if (html.size === 0) return planned;
+    let targets = outermost([...html.keys()]);
+    const pulls = planned.filter((el) => !targets.some((t) => t === el || t.contains(el)));
+    targets = targets.filter((t) => !pulls.some((p) => p.contains(t)));
+    const clean = targets.filter((t) => !dirty(t));
+    const { fetch, stale } = spare(targets.filter(dirty), root, topic, ids);
+    stale.forEach(markStale);
+    if (clean.length) {
+      const text = clean
+        .map((t) => `<hx-partial hx-target="${attr("#" + cssID(t.id))}" hx-swap="outerMorph">${html.get(t)}</hx-partial>`)
+        .join("");
+      htmx.swap({ text, sourceElement: root.body ?? root, swap: "none" });
+    }
+    return [...pulls, ...fetch];
+  }
+
   return {
     // frame handles one topic frame; ids null means the whole topic.
-    frame(topic, ids) {
-      apply(plan(root, topic, ids), topic, ids);
+    // fragments are elements the stream rendered for this frame.
+    frame(topic, ids, fragments = []) {
+      apply(push(plan(root, topic, ids), fragments, topic, ids), topic, ids);
+    },
+    // values applies a value frame and signals its keys to data-live
+    // elements of the topic.
+    values(topic, values) {
+      const start = performance.now();
+      const n = setValues(root, topic, values);
+      (root.body ?? root).dispatchEvent?.(
+        new CustomEvent("live:values", { bubbles: true, detail: { topic, elements: n, ms: performance.now() - start } }),
+      );
+      const keys = Object.keys(values);
+      if (keys.length && root.querySelector(topicSelector(topic))) this.frame(topic, keys);
     },
     resync() {
       apply(outermost([...root.querySelectorAll("[data-live]")]), null, null);
@@ -192,7 +271,7 @@ export function createDispatcher({ root = document, htmx, maxTargets = 64, sched
       }
     },
     listens(topic) {
-      return !!root.querySelector(topicSelector(topic));
+      return !!root.querySelector(`${topicSelector(topic)}, ${valueSelector(topic)}`);
     },
     flush,
     pending,
@@ -208,17 +287,21 @@ export function start({ stream = "#stream", htmx = window.htmx } = {}) {
     if (!e.target.matches?.(stream)) return;
     const { event, data } = e.detail.message;
     if (!event) return;
-    if (event === "resync") return d.resync();
+    let msg = {};
+    try {
+      msg = JSON.parse(data || "{}") ?? {};
+    } catch {}
+    if (event === "resync") {
+      for (const [topic, values] of Object.entries(msg.values ?? {})) setValues(document, topic, values);
+      return d.resync();
+    }
     // Keep frames something else on the page triggers on (hx-trigger="topic from:…").
     if (!d.listens(event) && !document.querySelector(`[hx-trigger*=${quote(event)}]`)) {
       e.detail.cancelled = true;
       return;
     }
-    let ids = null;
-    try {
-      ids = JSON.parse(data || "{}").ids ?? null;
-    } catch {}
-    d.frame(event, ids);
+    if (msg.values) d.values(event, msg.values);
+    else d.frame(event, msg.ids ?? null, msg.fragments ?? []);
   };
   const onClick = (e) => {
     const btn = e.target.closest?.("[data-live-refresh]");

@@ -1,13 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { plan, outermost, dirty, createDispatcher } from "./live.js";
+import { plan, outermost, dirty, createDispatcher, setValues } from "./live.js";
 
 function page(html) {
   const dom = new JSDOM(`<!DOCTYPE html><body>${html}</body>`, { url: "http://lab.test/series?q=1" });
   globalThis.location = dom.window.location;
   globalThis.CustomEvent = dom.window.CustomEvent;
   globalThis.Node = dom.window.Node;
+  globalThis.performance ??= { now: () => Date.now() };
   return dom.window.document;
 }
 
@@ -87,10 +88,14 @@ test("dirty reads value against the rendered default", () => {
 
 function dispatcher(doc) {
   const calls = [];
+  const swaps = [];
   let pendingTick = null;
   const d = createDispatcher({
     root: doc,
-    htmx: { ajax: async (verb, url, opts) => calls.push({ verb, url, ids: opts.headers["X-Live-Targets"].split(" ") }) },
+    htmx: {
+      ajax: async (verb, url, opts) => calls.push({ verb, url, ids: opts.headers["X-Live-Targets"].split(" ") }),
+      swap: (ctx) => swaps.push(ctx),
+    },
     schedule: (fn) => (pendingTick = fn),
   });
   const tick = async () => {
@@ -98,7 +103,7 @@ function dispatcher(doc) {
     pendingTick = null;
     await fn?.();
   };
-  return { d, calls, tick };
+  return { d, calls, swaps, tick };
 }
 
 test("frames within one animation frame go out as one GET of the page, listing every target", async () => {
@@ -215,4 +220,102 @@ test("Live-Skipped targets are queued again", async () => {
   d.requeue(["r2", "gone"]);
   await tick();
   assert.deepEqual(calls[0].ids, ["r2"]);
+});
+
+test("value frames set every listener of the key, wherever it is and however many", () => {
+  const dots = Array.from({ length: 50 }, (_, i) => `<span id="dot${i}" data-live-value="presence" data-live-value-key="p1" data-value="active"></span>`).join("");
+  const doc = page(`${dots}
+    <span id="text" data-live-value="presence" data-live-value-key="p1" data-live-value-into="text">active</span>
+    <span id="p2" data-live-value="presence" data-live-value-key="p2" data-value="idle"></span>
+    <span id="other" data-live-value="other" data-live-value-key="p1" data-value="x"></span>
+    <span id="evil" data-live-value="presence" data-live-value-key="p1" data-live-value-into="href"></span>`);
+  assert.equal(setValues(doc, "presence", { p1: "idle" }), 51);
+  assert.equal(doc.querySelectorAll('[data-value="idle"]').length, 51); // fifty dots and p2
+  assert.equal(doc.getElementById("text").textContent, "idle");
+  assert.equal(doc.getElementById("p2").dataset.value, "idle");
+  assert.equal(doc.getElementById("other").dataset.value, "x");
+  assert.equal(doc.getElementById("evil").hasAttribute("href"), false);
+});
+
+test("a value frame's keys are also a signal for data-live elements of the topic", async () => {
+  const doc = page(`<span id="dot" data-live-value="presence" data-live-value-key="p1" data-value="active"></span>
+    <article id="card" data-live="presence" data-live-key="p1"></article>`);
+  const { d, calls, tick } = dispatcher(doc);
+  let seen;
+  doc.addEventListener("live:values", (e) => (seen = e.detail));
+  d.values("presence", { p1: "idle" });
+  await tick();
+  assert.equal(doc.getElementById("dot").dataset.value, "idle");
+  assert.deepEqual(calls[0].ids, ["card"]);
+  assert.equal(seen.elements, 1);
+  assert.ok(d.listens("presence"));
+});
+
+test("a value frame for a page without data-live elements of the topic makes no request", async () => {
+  const doc = page(`<span id="dot" data-live-value="presence" data-live-value-key="p1" data-value="active"></span>`);
+  const { d, calls, tick } = dispatcher(doc);
+  d.values("presence", { p1: "idle", p9: "active" });
+  await tick();
+  assert.equal(calls.length, 0);
+  assert.ok(d.listens("presence"));
+  assert.ok(!d.listens("series"));
+});
+
+const card = (id, inner = "") => `<article id="${id}" data-live="job" data-live-key="${id.slice(-2)}">${inner}</article>`;
+
+test("a fragment is morphed into its element and its refetch is dropped", async () => {
+  const doc = page(card("card--j1", `<p id="step--j1" data-live="job" data-live-key="j1"></p>`) + card("card--j2"));
+  const { d, calls, swaps, tick } = dispatcher(doc);
+  d.frame("job", ["j1"], [{ target: "card--j1", html: '<article id="card--j1">new</article>' }]);
+  await tick();
+  assert.equal(calls.length, 0);
+  assert.equal(swaps.length, 1);
+  assert.equal(swaps[0].swap, "none");
+  assert.equal(swaps[0].text, '<hx-partial hx-target="#card--j1" hx-swap="outerMorph"><article id="card--j1">new</article></hx-partial>');
+});
+
+test("a fragment for an element the page does not show is ignored", async () => {
+  const doc = page(card("card--j2"));
+  const { d, calls, swaps, tick } = dispatcher(doc);
+  d.frame("job", ["j1"], [{ target: "card--j1", html: "<article id='card--j1'></article>" }]);
+  await tick();
+  assert.equal(swaps.length, 0);
+  assert.equal(calls.length, 0);
+});
+
+test("what no fragment covers is refetched: a failed render falls back to a pull", async () => {
+  const doc = page(card("card--j1") + card("card--j2") + `<li id="dm--j1" data-live="job" data-live-key="j1"></li>`);
+  const { d, calls, swaps, tick } = dispatcher(doc);
+  d.frame("job", ["j1", "j2"], [{ target: "card--j1", html: '<article id="card--j1"></article>' }]);
+  await tick();
+  assert.equal(swaps.length, 1);
+  assert.deepEqual(calls[0].ids, ["card--j2", "dm--j1"]);
+});
+
+test("outer wins: a fragment inside an element being refetched is dropped", async () => {
+  const doc = page(`<table><tbody id="list" data-live="t">${rows(2)}</tbody></table>`);
+  const { d, calls, swaps, tick } = dispatcher(doc);
+  d.frame("t", ["k1", "k2"], [{ target: "r1", html: '<tr id="r1"></tr>' }]);
+  await tick();
+  assert.equal(swaps.length, 0);
+  assert.deepEqual(calls[0].ids, ["list"]);
+});
+
+test("a fragment for a dirty editor is not morphed; its notice is revealed", async () => {
+  const doc = page(`
+    <form id="d1" data-live="draft" data-live-key="d1"><input value="1"><p data-live-stale hidden>Changed</p></form>
+    <form id="d2" data-live="draft" data-live-key="d2"><input value="2"><p data-live-stale hidden>Changed</p></form>`);
+  doc.querySelector("#d1 input").value = "1x";
+  const { d, calls, swaps, tick } = dispatcher(doc);
+  d.frame("draft", ["d1", "d2"], [
+    { target: "d1", html: '<form id="d1"><input value="9"></form>' },
+    { target: "d2", html: '<form id="d2"><input value="8"></form>' },
+  ]);
+  await tick();
+  assert.equal(calls.length, 0);
+  assert.equal(swaps.length, 1);
+  assert.ok(!swaps[0].text.includes('id="d1"'));
+  assert.ok(swaps[0].text.includes('id="d2"'));
+  assert.equal(doc.querySelector("#d1 input").value, "1x");
+  assert.equal(doc.querySelector("#d1 [data-live-stale]").hidden, false);
 });

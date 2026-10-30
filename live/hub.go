@@ -1,15 +1,23 @@
-// Package live pushes "this changed" signals to browser tabs and lets the
-// page refetch exactly the elements showing what changed.
+// Package live pushes changes to browser tabs on one SSE stream per tab.
 //
-// A Hub fans topic frames out to SSE subscribers. Frames carry a topic and,
-// at most, opaque ids; never content. The page's dispatcher (js/live.js)
-// matches frames to elements marked with On and refetches them in one POST
-// to a BatchHandler.
+// A Hub fans topic frames out to subscribers. A frame is one of three kinds:
+//
+//   - a signal: a topic and opaque ids. The page's dispatcher (js/live.js)
+//     matches it to elements marked with On and refetches them in one GET per
+//     page URL, answered by Middleware.
+//   - a value frame (PublishValues): a topic and key → value pairs that every
+//     recipient may see. The dispatcher writes each value into every element
+//     marked with Value or ValueText for that key; nothing is fetched.
+//   - a fragment frame: a signal whose topic has components registered with
+//     Hub.Fragment. Each subscriber's stream renders them for its own viewer
+//     and sends the HTML with the signal; the dispatcher morphs it into the
+//     element with that id and refetches only what no fragment covered.
 package live
 
 import (
 	"context"
 	"crypto/rand"
+	"maps"
 	"slices"
 	"strconv"
 	"sync"
@@ -18,10 +26,11 @@ import (
 )
 
 // Frame is one signal: a topic and the ids it concerns. Nil IDs means the
-// whole topic changed.
+// whole topic changed. A value frame has Values instead of IDs.
 type Frame struct {
-	Topic string
-	IDs   []string
+	Topic  string
+	IDs    []string
+	Values map[string]string
 }
 
 // Audience decides which viewers may hear a frame. Admit receives every
@@ -49,6 +58,7 @@ type Config struct {
 	Buffer       int           // frames queued per subscriber before it is told to resync [256]
 	Heartbeat    time.Duration // SSE comment interval [15s]
 	WriteTimeout time.Duration // deadline for each SSE write [10s]
+	MaxFragment  int           // bytes of rendered fragments per frame; the rest are pulled [256 KiB]
 }
 
 func (c Config) withDefaults() Config {
@@ -67,6 +77,9 @@ func (c Config) withDefaults() Config {
 	if c.WriteTimeout == 0 {
 		c.WriteTimeout = 10 * time.Second
 	}
+	if c.MaxFragment == 0 {
+		c.MaxFragment = 256 << 10
+	}
 	return c
 }
 
@@ -75,11 +88,13 @@ func (c Config) withDefaults() Config {
 // nothing: a frame published while a tab is disconnected is gone, and the
 // tab's resync on reconnect covers it.
 type Hub[V any] struct {
-	cfg   Config
-	epoch string
-	seq   atomic.Uint64
-	mu    sync.Mutex
-	subs  map[*Subscription]V
+	cfg       Config
+	epoch     string
+	seq       atomic.Uint64
+	mu        sync.Mutex
+	subs      map[*Subscription]V
+	fragments map[string][]fragment[V]
+	current   map[string]CurrentFunc[V]
 }
 
 // Since names this hub's position: it changes with every Publish. A page
@@ -91,12 +106,53 @@ func (h *Hub[V]) Since() string {
 }
 
 func NewHub[V any](cfg Config) *Hub[V] {
-	return &Hub[V]{cfg: cfg.withDefaults(), epoch: rand.Text()[:10], subs: map[*Subscription]V{}}
+	return &Hub[V]{
+		cfg:       cfg.withDefaults(),
+		epoch:     rand.Text()[:10],
+		subs:      map[*Subscription]V{},
+		fragments: map[string][]fragment[V]{},
+		current:   map[string]CurrentFunc[V]{},
+	}
 }
 
 // Publish sends topic with ids to every subscriber aud admits. With no ids
 // the frame concerns the whole topic.
 func (h *Hub[V]) Publish(ctx context.Context, aud Audience[V], topic string, ids ...string) {
+	h.publish(ctx, aud, Frame{Topic: topic, IDs: ids}, ids)
+}
+
+// PublishValues sends topic's new values to every subscriber aud admits, as
+// one value frame. Every admitted viewer receives the same values, so they
+// must be what each of them may see; aud is the only check. Values of one
+// topic published within the coalescing gap merge, the later value of a key
+// winning.
+func (h *Hub[V]) PublishValues(ctx context.Context, aud Audience[V], topic string, values map[string]string) {
+	if len(values) == 0 {
+		return
+	}
+	h.publish(ctx, aud, Frame{Topic: topic, Values: maps.Clone(values)}, slices.Sorted(maps.Keys(values)))
+}
+
+// End closes the stream of every subscriber whose viewer match selects, so
+// its tab reconnects through the host's authentication and resyncs. Call it
+// when a viewer's permissions change: fragments are rendered and value
+// snapshots read as the viewer the stream was opened for.
+func (h *Hub[V]) End(match func(V) bool) int {
+	h.seq.Add(1) // the reconnect must resync, whatever was published
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	n := 0
+	for s, v := range h.subs {
+		if match(v) {
+			s.end()
+			n++
+		}
+	}
+	return n
+}
+
+func (h *Hub[V]) publish(ctx context.Context, aud Audience[V], f Frame, ids []string) {
+	topic := f.Topic
 	h.seq.Add(1)
 	h.mu.Lock()
 	subs := make([]*Subscription, 0, len(h.subs))
@@ -112,14 +168,14 @@ func (h *Hub[V]) Publish(ctx context.Context, aud Audience[V], topic string, ids
 	ok := aud.Admit(ctx, topic, ids, viewers)
 	for i, s := range subs {
 		if i < len(ok) && ok[i] {
-			s.signal(topic, ids)
+			s.signal(f)
 		}
 	}
 }
 
 // Subscribe registers viewer until the Subscription is closed.
 func (h *Hub[V]) Subscribe(viewer V) *Subscription {
-	s := &Subscription{cfg: h.cfg, ready: make(chan struct{}, 1), topics: map[string]*topicState{}}
+	s := &Subscription{cfg: h.cfg, ready: make(chan struct{}, 1), ended: make(chan struct{}), topics: map[string]*topicState{}}
 	s.done = func() {
 		h.mu.Lock()
 		delete(h.subs, s)
@@ -139,6 +195,8 @@ type Subscription struct {
 	cfg    Config
 	done   func()
 	ready  chan struct{}
+	ended  chan struct{}
+	once   sync.Once
 	mu     sync.Mutex
 	queue  []Frame
 	resync bool
@@ -154,6 +212,12 @@ type topicState struct {
 
 // Ready is signalled whenever Take has something to return.
 func (s *Subscription) Ready() <-chan struct{} { return s.ready }
+
+// Ended is closed when the hub ends the subscription (Hub.End); the stream
+// should then close.
+func (s *Subscription) Ended() <-chan struct{} { return s.ended }
+
+func (s *Subscription) end() { s.once.Do(func() { close(s.ended) }) }
 
 // Take returns the queued frames. resync reports that frames were lost
 // (the queue overflowed); the listener should then refetch everything, and
@@ -179,33 +243,46 @@ func (s *Subscription) Close() {
 	}
 }
 
-func (s *Subscription) signal(topic string, ids []string) {
+func (s *Subscription) signal(f Frame) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return
 	}
-	t := s.topics[topic]
+	// Value frames coalesce apart from signals of the same topic: merging
+	// values into an id-less signal would lose them.
+	key := f.Topic
+	if f.Values != nil {
+		key = "\x00" + f.Topic
+	}
+	t := s.topics[key]
 	if t == nil {
 		t = &topicState{}
-		s.topics[topic] = t
+		s.topics[key] = t
 	}
 	if t.held != nil {
-		if len(t.held.IDs) == 0 || len(ids) == 0 {
+		switch {
+		case f.Values != nil:
+			maps.Copy(t.held.Values, f.Values)
+		case len(t.held.IDs) == 0 || len(f.IDs) == 0:
 			t.held.IDs = nil
-		} else {
-			t.held.IDs = s.union(t.held.IDs, ids)
+		default:
+			t.held.IDs = s.union(t.held.IDs, f.IDs)
 		}
 		return
 	}
+	fresh := Frame{Topic: f.Topic, IDs: s.union(nil, f.IDs)}
+	if f.Values != nil {
+		fresh = Frame{Topic: f.Topic, Values: maps.Clone(f.Values)}
+	}
 	now := time.Now()
 	if wait := t.lastSent.Add(s.cfg.Gap).Sub(now); wait > 0 {
-		t.held = &Frame{Topic: topic, IDs: s.union(nil, ids)}
+		t.held = &fresh
 		t.timer = time.AfterFunc(wait, func() { s.release(t) })
 		return
 	}
 	t.lastSent = now
-	s.enqueue(Frame{Topic: topic, IDs: s.union(nil, ids)})
+	s.enqueue(fresh)
 }
 
 func (s *Subscription) release(t *topicState) {
