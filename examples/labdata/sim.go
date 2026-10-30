@@ -34,6 +34,8 @@ func Simulate(s *Store, action, id string, publish Publish) error {
 			return err
 		}
 		publish("lab:presence", id)
+	case "presence-crowd":
+		publish("lab:presence", s.CycleCrowd()...)
 	case "draft":
 		d, err := s.Draft(id)
 		if err != nil {

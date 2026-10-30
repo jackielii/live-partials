@@ -3,9 +3,12 @@
 !/examples/lab/dist/.gitkeep
 /examples/datastar/dist/*
 !/examples/datastar/dist/.gitkeep
+/examples/hybrid/dist/*
+!/examples/hybrid/dist/.gitkeep
 /tmp/
 /test-results/
 /playwright-report/
 .env
 /lab
 /datastar
+/hybrid

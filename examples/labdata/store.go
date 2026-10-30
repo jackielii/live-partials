@@ -69,6 +69,7 @@ type state struct {
 	total    atomic.Int64 // every query through any handle, for the fan-out measurement
 	series   []Series
 	people   []Person
+	crowd    []Person
 	drafts   []DraftRow
 	files    []File
 	burst    []BurstRow
@@ -92,8 +93,13 @@ func WithQueries(ctx context.Context) (context.Context, *atomic.Int32) {
 
 // ForRequest is the store handle for r, counting into r's counter.
 func (s *Store) ForRequest(r *http.Request) (*Store, error) {
-	n, _ := r.Context().Value(queriesKey{}).(*atomic.Int32)
-	return &Store{state: s.state, queries: n}, nil
+	return s.ForContext(r.Context()), nil
+}
+
+// ForContext is the store handle counting into ctx's counter (WithQueries).
+func (s *Store) ForContext(ctx context.Context) *Store {
+	n, _ := ctx.Value(queriesKey{}).(*atomic.Int32)
+	return &Store{state: s.state, queries: n}
 }
 
 // Counting is a handle whose queries are counted into n.
@@ -115,13 +121,16 @@ func (s *Store) query() {
 func (s *Store) Reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.series, s.people, s.drafts, s.files, s.burst = nil, nil, nil, nil, nil
+	s.series, s.people, s.crowd, s.drafts, s.files, s.burst = nil, nil, nil, nil, nil, nil
 	s.nextFile = 1
 	for i := 1; i <= 10; i++ {
 		s.series = append(s.series, Series{ID: fmt.Sprintf("s%d", i), Name: fmt.Sprintf("Well %02d pressure", i), Points: 100 * i, Status: "ok"})
 	}
 	for i, n := range []string{"Ada Lovelace", "Alan Turing", "Grace Hopper", "Edsger Dijkstra", "Barbara Liskov", "Ken Thompson"} {
 		s.people = append(s.people, Person{ID: fmt.Sprintf("p%d", i+1), Name: n, Presence: []string{"active", "idle", "inactive"}[i%3]})
+	}
+	for i := 1; i <= 50; i++ {
+		s.crowd = append(s.crowd, Person{ID: fmt.Sprintf("c%d", i), Name: fmt.Sprintf("Member %02d", i), Presence: []string{"active", "idle", "inactive"}[i%3]})
 	}
 	for i, l := range []string{"Revenue", "Operating cost", "Headcount", "Capex", "Notes"} {
 		s.drafts = append(s.drafts, DraftRow{ID: fmt.Sprintf("d%d", i+1), Label: l, Value: fmt.Sprint((i + 1) * 1000)})
@@ -213,27 +222,86 @@ func (s *Store) People() []Person {
 	return slices.Clone(s.people)
 }
 
+// Crowd is fifty more people, shown only by the hybrid stage's case 2 to
+// put many presence dots on one page.
+func (s *Store) Crowd() []Person {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.query()
+	return slices.Clone(s.crowd)
+}
+
 func (s *Store) Person(id string) (Person, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.people, id, func(x Person) string { return x.ID })
+	p, err := s.personLocked(id)
 	if err != nil {
 		return Person{}, err
 	}
-	return s.people[i], nil
+	return *p, nil
+}
+
+// Presence returns the presence of each known id in one query.
+func (s *Store) Presence(ids []string) map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.query()
+	out := make(map[string]string, len(ids))
+	for _, id := range ids {
+		if p, err := s.personLocked(id); err == nil {
+			out[id] = p.Presence
+		}
+	}
+	return out
+}
+
+// AllPresence returns everyone's presence, people and crowd, in one query.
+func (s *Store) AllPresence() map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.query()
+	out := make(map[string]string, len(s.people)+len(s.crowd))
+	for _, p := range slices.Concat(s.people, s.crowd) {
+		out[p.ID] = p.Presence
+	}
+	return out
+}
+
+func (s *Store) personLocked(id string) (*Person, error) {
+	for _, xs := range [][]Person{s.people, s.crowd} {
+		if i, err := find(xs, id, func(x Person) string { return x.ID }); err == nil {
+			return &xs[i], nil
+		}
+	}
+	return nil, ErrNotFound
 }
 
 func (s *Store) CyclePresence(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.people, id, func(x Person) string { return x.ID })
+	p, err := s.personLocked(id)
 	if err != nil {
 		return err
 	}
-	s.people[i].Presence = map[string]string{"active": "idle", "idle": "inactive", "inactive": "active"}[s.people[i].Presence]
+	p.Presence = map[string]string{"active": "idle", "idle": "inactive", "inactive": "active"}[p.Presence]
 	return nil
+}
+
+// CycleCrowd moves every crowd member to their next presence in one query
+// and returns their ids.
+func (s *Store) CycleCrowd() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.query()
+	ids := make([]string, len(s.crowd))
+	for i := range s.crowd {
+		p := &s.crowd[i]
+		p.Presence = map[string]string{"active": "idle", "idle": "inactive", "inactive": "active"}[p.Presence]
+		ids[i] = p.ID
+	}
+	return ids
 }
 
 func (s *Store) Drafts() []DraftRow {
