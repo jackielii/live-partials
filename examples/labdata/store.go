@@ -1,4 +1,4 @@
-package main
+package labdata
 
 import (
 	"context"
@@ -11,45 +11,45 @@ import (
 	"sync/atomic"
 )
 
-var errNotFound = errors.New("not found")
+var ErrNotFound = errors.New("not found")
 
-type series struct {
+type Series struct {
 	ID     string
 	Name   string
 	Points int
 	Status string // "ok", "stale", "failing"
 }
 
-type seriesSummary struct {
+type SeriesSummary struct {
 	Count, Points      int
 	OK, Stale, Failing int
 }
 
-type person struct {
+type Person struct {
 	ID       string
 	Name     string
 	Presence string // "active", "idle", "inactive"
 }
 
-type draftRow struct {
+type DraftRow struct {
 	ID    string
 	Label string
 	Value string
 	By    string
 }
 
-type file struct {
+type File struct {
 	ID   string
 	Name string
 	Size int
 }
 
-type burstRow struct {
+type BurstRow struct {
 	ID    string
 	Value int
 }
 
-type job struct {
+type Job struct {
 	ID       string
 	Name     string
 	Progress int
@@ -57,72 +57,82 @@ type job struct {
 	Step     string
 }
 
-// store is one request's handle on the lab's shared in-memory state, which
+// Store is one request's handle on the lab's shared in-memory state, which
 // every tab sees. Each exported method counts as one database query.
-type store struct {
+type Store struct {
 	*state
-	queries *atomic.Int32 // this request's queries; nil outside a request
+	queries *atomic.Int32 // this handle's queries; nil outside a request
 }
 
 type state struct {
 	mu       sync.Mutex
-	series   []series
-	people   []person
-	drafts   []draftRow
-	files    []file
-	burst    []burstRow
-	jobs     []job
+	total    atomic.Int64 // every query through any handle, for the fan-out measurement
+	series   []Series
+	people   []Person
+	drafts   []DraftRow
+	files    []File
+	burst    []BurstRow
+	jobs     []Job
 	nextFile int
 }
 
-func newStore() *store {
-	s := &store{state: &state{}}
-	s.reset()
+func New() *Store {
+	s := &Store{state: &state{}}
+	s.Reset()
 	return s
 }
 
 type queriesKey struct{}
 
-// withQueries returns ctx carrying a fresh query counter for forRequest.
-func withQueries(ctx context.Context) (context.Context, *atomic.Int32) {
+// WithQueries returns ctx carrying a fresh query counter for ForRequest.
+func WithQueries(ctx context.Context) (context.Context, *atomic.Int32) {
 	n := new(atomic.Int32)
 	return context.WithValue(ctx, queriesKey{}, n), n
 }
 
-// forRequest is the store handle for r, counting into r's counter.
-func (s *store) forRequest(r *http.Request) (*store, error) {
+// ForRequest is the store handle for r, counting into r's counter.
+func (s *Store) ForRequest(r *http.Request) (*Store, error) {
 	n, _ := r.Context().Value(queriesKey{}).(*atomic.Int32)
-	return &store{state: s.state, queries: n}, nil
+	return &Store{state: s.state, queries: n}, nil
 }
 
-func (s *store) query() {
+// Counting is a handle whose queries are counted into n.
+func (s *Store) Counting(n *atomic.Int32) *Store {
+	return &Store{state: s.state, queries: n}
+}
+
+// TotalQueries is the number of queries made through every handle.
+func (s *Store) TotalQueries() int64 { return s.total.Load() }
+
+func (s *Store) query() {
+	s.total.Add(1)
 	if s.queries != nil {
 		s.queries.Add(1)
 	}
 }
 
-// reset restores the seed data, so each e2e test starts from the same state.
-func (s *store) reset() {
+// Reset restores the seed data, so each e2e test starts from the same state.
+func (s *Store) Reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.series, s.people, s.drafts, s.files, s.burst = nil, nil, nil, nil, nil
 	s.nextFile = 1
 	for i := 1; i <= 10; i++ {
-		s.series = append(s.series, series{ID: fmt.Sprintf("s%d", i), Name: fmt.Sprintf("Well %02d pressure", i), Points: 100 * i, Status: "ok"})
+		s.series = append(s.series, Series{ID: fmt.Sprintf("s%d", i), Name: fmt.Sprintf("Well %02d pressure", i), Points: 100 * i, Status: "ok"})
 	}
 	for i, n := range []string{"Ada Lovelace", "Alan Turing", "Grace Hopper", "Edsger Dijkstra", "Barbara Liskov", "Ken Thompson"} {
-		s.people = append(s.people, person{ID: fmt.Sprintf("p%d", i+1), Name: n, Presence: []string{"active", "idle", "inactive"}[i%3]})
+		s.people = append(s.people, Person{ID: fmt.Sprintf("p%d", i+1), Name: n, Presence: []string{"active", "idle", "inactive"}[i%3]})
 	}
 	for i, l := range []string{"Revenue", "Operating cost", "Headcount", "Capex", "Notes"} {
-		s.drafts = append(s.drafts, draftRow{ID: fmt.Sprintf("d%d", i+1), Label: l, Value: fmt.Sprint((i + 1) * 1000)})
+		s.drafts = append(s.drafts, DraftRow{ID: fmt.Sprintf("d%d", i+1), Label: l, Value: fmt.Sprint((i + 1) * 1000)})
 	}
 	for _, n := range []string{"budget.xlsx", "minutes.docx", "site-photo.jpg"} {
 		s.addFileLocked(n)
 	}
 	for i := 1; i <= 60; i++ {
-		s.burst = append(s.burst, burstRow{ID: fmt.Sprintf("b%d", i), Value: i})
+		s.burst = append(s.burst, BurstRow{ID: fmt.Sprintf("b%d", i), Value: i})
 	}
-	s.jobs = []job{
+	s.jobs = []Job{
 		{ID: "j1", Name: "Ingest Q3 well logs", Status: "running", Progress: 10, Step: "reading files"},
 		{ID: "j2", Name: "Rebuild search index", Status: "queued", Step: "waiting"},
 	}
@@ -131,12 +141,12 @@ func (s *store) reset() {
 func find[T any](xs []T, id string, key func(T) string) (int, error) {
 	i := slices.IndexFunc(xs, func(x T) bool { return key(x) == id })
 	if i < 0 {
-		return -1, errNotFound
+		return -1, ErrNotFound
 	}
 	return i, nil
 }
 
-func (s *store) Series() ([]series, seriesSummary) {
+func (s *Store) Series() ([]Series, SeriesSummary) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
@@ -145,11 +155,11 @@ func (s *store) Series() ([]series, seriesSummary) {
 
 // SeriesByID loads the series with the given ids in one query; ids it
 // does not know are absent from the map.
-func (s *store) SeriesByID(ids []string) (map[string]series, error) {
+func (s *Store) SeriesByID(ids []string) (map[string]Series, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	out := make(map[string]series, len(ids))
+	out := make(map[string]Series, len(ids))
 	for _, x := range s.series {
 		if slices.Contains(ids, x.ID) {
 			out[x.ID] = x
@@ -158,15 +168,15 @@ func (s *store) SeriesByID(ids []string) (map[string]series, error) {
 	return out, nil
 }
 
-func (s *store) Summary() seriesSummary {
+func (s *Store) Summary() SeriesSummary {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
 	return s.summaryLocked()
 }
 
-func (s *store) summaryLocked() seriesSummary {
-	var sum seriesSummary
+func (s *Store) summaryLocked() SeriesSummary {
+	var sum SeriesSummary
 	for _, x := range s.series {
 		sum.Count++
 		sum.Points += x.Points
@@ -183,11 +193,11 @@ func (s *store) summaryLocked() seriesSummary {
 }
 
 // TouchSeries adds points to one series and rotates its status.
-func (s *store) TouchSeries(id string) error {
+func (s *Store) TouchSeries(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.series, id, func(x series) string { return x.ID })
+	i, err := find(s.series, id, func(x Series) string { return x.ID })
 	if err != nil {
 		return err
 	}
@@ -196,29 +206,29 @@ func (s *store) TouchSeries(id string) error {
 	return nil
 }
 
-func (s *store) People() []person {
+func (s *Store) People() []Person {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
 	return slices.Clone(s.people)
 }
 
-func (s *store) Person(id string) (person, error) {
+func (s *Store) Person(id string) (Person, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.people, id, func(x person) string { return x.ID })
+	i, err := find(s.people, id, func(x Person) string { return x.ID })
 	if err != nil {
-		return person{}, err
+		return Person{}, err
 	}
 	return s.people[i], nil
 }
 
-func (s *store) CyclePresence(id string) error {
+func (s *Store) CyclePresence(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.people, id, func(x person) string { return x.ID })
+	i, err := find(s.people, id, func(x Person) string { return x.ID })
 	if err != nil {
 		return err
 	}
@@ -226,29 +236,29 @@ func (s *store) CyclePresence(id string) error {
 	return nil
 }
 
-func (s *store) Drafts() []draftRow {
+func (s *Store) Drafts() []DraftRow {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
 	return slices.Clone(s.drafts)
 }
 
-func (s *store) Draft(id string) (draftRow, error) {
+func (s *Store) Draft(id string) (DraftRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.drafts, id, func(x draftRow) string { return x.ID })
+	i, err := find(s.drafts, id, func(x DraftRow) string { return x.ID })
 	if err != nil {
-		return draftRow{}, err
+		return DraftRow{}, err
 	}
 	return s.drafts[i], nil
 }
 
-func (s *store) SaveDraft(id, value, by string) error {
+func (s *Store) SaveDraft(id, value, by string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.drafts, id, func(x draftRow) string { return x.ID })
+	i, err := find(s.drafts, id, func(x DraftRow) string { return x.ID })
 	if err != nil {
 		return err
 	}
@@ -257,44 +267,44 @@ func (s *store) SaveDraft(id, value, by string) error {
 	return nil
 }
 
-func (s *store) Files() []file {
+func (s *Store) Files() []File {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
 	return slices.Clone(s.files)
 }
 
-func (s *store) File(id string) (file, error) {
+func (s *Store) File(id string) (File, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.files, id, func(x file) string { return x.ID })
+	i, err := find(s.files, id, func(x File) string { return x.ID })
 	if err != nil {
-		return file{}, err
+		return File{}, err
 	}
 	return s.files[i], nil
 }
 
-func (s *store) AddFile(name string) file {
+func (s *Store) AddFile(name string) File {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
 	return s.addFileLocked(name)
 }
 
-func (s *store) addFileLocked(name string) file {
-	f := file{ID: fmt.Sprintf("f%d", s.nextFile), Name: name, Size: 1024 * (s.nextFile*37%90 + 10)}
+func (s *Store) addFileLocked(name string) File {
+	f := File{ID: fmt.Sprintf("f%d", s.nextFile), Name: name, Size: 1024 * (s.nextFile*37%90 + 10)}
 	s.nextFile++
 	s.files = append(s.files, f)
-	slices.SortFunc(s.files, func(a, b file) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(s.files, func(a, b File) int { return strings.Compare(a.Name, b.Name) })
 	return f
 }
 
-func (s *store) DeleteFile(id string) error {
+func (s *Store) DeleteFile(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.files, id, func(x file) string { return x.ID })
+	i, err := find(s.files, id, func(x File) string { return x.ID })
 	if err != nil {
 		return err
 	}
@@ -302,29 +312,29 @@ func (s *store) DeleteFile(id string) error {
 	return nil
 }
 
-func (s *store) Burst() []burstRow {
+func (s *Store) Burst() []BurstRow {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
 	return slices.Clone(s.burst)
 }
 
-func (s *store) BurstRow(id string) (burstRow, error) {
+func (s *Store) BurstRow(id string) (BurstRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.burst, id, func(x burstRow) string { return x.ID })
+	i, err := find(s.burst, id, func(x BurstRow) string { return x.ID })
 	if err != nil {
-		return burstRow{}, err
+		return BurstRow{}, err
 	}
 	return s.burst[i], nil
 }
 
-func (s *store) BumpBurst(id string) error {
+func (s *Store) BumpBurst(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.burst, id, func(x burstRow) string { return x.ID })
+	i, err := find(s.burst, id, func(x BurstRow) string { return x.ID })
 	if err != nil {
 		return err
 	}
@@ -332,30 +342,30 @@ func (s *store) BumpBurst(id string) error {
 	return nil
 }
 
-func (s *store) Jobs() []job {
+func (s *Store) Jobs() []Job {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
 	return slices.Clone(s.jobs)
 }
 
-func (s *store) Job(id string) (job, error) {
+func (s *Store) Job(id string) (Job, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.jobs, id, func(x job) string { return x.ID })
+	i, err := find(s.jobs, id, func(x Job) string { return x.ID })
 	if err != nil {
-		return job{}, err
+		return Job{}, err
 	}
 	return s.jobs[i], nil
 }
 
 // AdvanceJob moves progress by 10 points without changing the status.
-func (s *store) AdvanceJob(id string) error {
+func (s *Store) AdvanceJob(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.jobs, id, func(x job) string { return x.ID })
+	i, err := find(s.jobs, id, func(x Job) string { return x.ID })
 	if err != nil {
 		return err
 	}
@@ -364,11 +374,11 @@ func (s *store) AdvanceJob(id string) error {
 }
 
 // StepJob moves the job to its next status, which changes the whole card.
-func (s *store) StepJob(id string) error {
+func (s *Store) StepJob(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.query()
-	i, err := find(s.jobs, id, func(x job) string { return x.ID })
+	i, err := find(s.jobs, id, func(x Job) string { return x.ID })
 	if err != nil {
 		return err
 	}
@@ -382,4 +392,19 @@ func (s *store) StepJob(id string) error {
 		j.Status, j.Step, j.Progress = "queued", "waiting", 0
 	}
 	return nil
+}
+
+// Catalog returns the series whose status is status, or every series when
+// status is empty, in catalog order.
+func (s *Store) Catalog(status string) []Series {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.query()
+	var out []Series
+	for _, x := range s.series {
+		if status == "" || x.Status == status {
+			out = append(out, x)
+		}
+	}
+	return out
 }

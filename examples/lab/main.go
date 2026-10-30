@@ -12,13 +12,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gsxhq/vite"
 	"github.com/jackielii/structpages"
 
+	"github.com/jackielii/live-partials/examples/labdata"
 	"github.com/jackielii/live-partials/live"
 )
 
@@ -44,7 +44,7 @@ type pages struct {
 }
 
 func newHandler(v *vite.Vite) (http.Handler, error) {
-	s := newStore()
+	s := labdata.New()
 	h := live.NewHub[string](live.Config{})
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +57,7 @@ func newHandler(v *vite.Vite) (http.Handler, error) {
 	}
 	if _, err := structpages.Mount(mux, pages{}, "/", "Lab",
 		structpages.WithArgs(h),
-		structpages.WithRequestArgs(s.forRequest),
+		structpages.WithRequestArgs(s.ForRequest),
 		structpages.WithTargetSelector(structpages.HTMXv4RenderTarget),
 		structpages.WithMiddlewares(live.Middleware),
 		structpages.WithErrorHandler(errorHandler),
@@ -82,59 +82,9 @@ func (simAction) ServeHTTP(w http.ResponseWriter, r *http.Request, s *store, h *
 	publish := func(topic string, ids ...string) {
 		h.Publish(context.WithoutCancel(r.Context()), everyone, topic, ids...)
 	}
-	id := r.FormValue("id")
-	var err error
-	switch a := r.PathValue("action"); a {
-	case "reset":
-		s.reset()
-		publish("resync")
-	case "series-touch":
-		ids := strings.Fields(id)
-		for _, id := range ids {
-			if err = s.TouchSeries(id); err != nil {
-				break
-			}
-		}
-		if err == nil {
-			publish("lab:series", ids...)
-		}
-	case "presence":
-		if err = s.CyclePresence(id); err == nil {
-			publish("lab:presence", id)
-		}
-	case "draft":
-		d, derr := s.Draft(id)
-		if err = derr; err == nil {
-			if err = s.SaveDraft(id, fmt.Sprint(len(d.Value)*1000+7), "Grace"); err == nil {
-				publish("lab:draft", id)
-			}
-		}
-	case "file-add":
-		f := s.AddFile(fmt.Sprintf("upload-%d.pdf", time.Now().UnixMilli()%100000))
-		publish("lab:files", f.ID)
-	case "file-delete":
-		if err = s.DeleteFile(id); err == nil {
-			publish("lab:files", id)
-		}
-	case "burst":
-		go func() {
-			for _, row := range s.Burst()[:50] {
-				if s.BumpBurst(row.ID) == nil {
-					publish("lab:burst", row.ID)
-				}
-				time.Sleep(2 * time.Millisecond)
-			}
-		}()
-	case "job-advance":
-		if err = s.AdvanceJob(id); err == nil {
-			publish("lab:job-progress", id)
-		}
-	case "job-step":
-		if err = s.StepJob(id); err == nil {
-			publish("lab:job", id)
-		}
-	default:
-		return fmt.Errorf("unknown action %q: %w", a, errNotFound)
+	err := labdata.Simulate(s, r.PathValue("action"), r.FormValue("id"), publish)
+	if errors.Is(err, labdata.ErrUnknownAction) {
+		return fmt.Errorf("%w: %w", err, errNotFound)
 	}
 	if err != nil {
 		return err

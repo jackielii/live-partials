@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/jackielii/live-partials/examples/labdata"
 )
 
 // serverTiming reports, at the response's first byte, the handler's time so
@@ -17,7 +19,7 @@ func serverTiming(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		ctx, queries := withQueries(r.Context())
+		ctx, queries := labdata.WithQueries(r.Context())
 		next.ServeHTTP(&timedWriter{ResponseWriter: w, start: time.Now(), queries: queries}, r.WithContext(ctx))
 	})
 }
