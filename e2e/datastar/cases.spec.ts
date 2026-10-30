@@ -186,3 +186,16 @@ test("reconnect: a change made while the stream was down arrives on reconnect", 
   await expect(page.locator("#series-row--s3 [data-testid=points]")).toHaveText("307", { timeout: 10_000 });
   expect((await meter(page)).connects).toBeGreaterThan(1);
 });
+
+test("reconnect: a stream with Datastar's default retry stays closed after a clean end", async ({ page }) => {
+  await open(page, "/jobs");
+  await page.evaluate(() => document.body.insertAdjacentHTML("beforeend", `<div data-init="@get('/series/updates')"></div>`));
+  await page.waitForFunction(() => (window as any).__meter.connects > 1);
+  const reopened: string[] = [];
+  page.on("request", (r) => r.url().includes("/updates") && reopened.push(new URL(r.url()).pathname));
+  await post(page, "/sim/drop-streams");
+  await page.waitForTimeout(5000);
+  // The layout's stream (retry: 'always') comes back; the default one does not.
+  expect(reopened).toContain("/jobs/updates");
+  expect(reopened).not.toContain("/series/updates");
+});
