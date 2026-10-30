@@ -84,12 +84,20 @@ func (r *Reader) Next() (Event, error) {
 	return ev, io.EOF
 }
 
-// BrotliSize is len(b) compressed on its own at the default level.
+var brotliSizes sync.Map // string → int64
+
+// BrotliSize is len(b) compressed on its own at the default level. It is
+// remembered per content, so the tabs' identical bodies are compressed once
+// and compression does not count as the stage's CPU.
 func BrotliSize(b []byte) int64 {
+	if n, ok := brotliSizes.Load(string(b)); ok {
+		return n.(int64)
+	}
 	var out bytes.Buffer
 	w := brotli.NewWriterLevel(&out, brotli.DefaultCompression)
 	w.Write(b)
 	w.Close()
+	brotliSizes.Store(string(b), int64(out.Len()))
 	return int64(out.Len())
 }
 
