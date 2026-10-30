@@ -319,3 +319,19 @@ test("a fragment for a dirty editor is not morphed; its notice is revealed", asy
   assert.equal(doc.querySelector("#d1 input").value, "1x");
   assert.equal(doc.querySelector("#d1 [data-live-stale]").hidden, false);
 });
+
+test("a fragment the page answered 404 for deletes its element, as a pulled 404 does", async () => {
+  const doc = page(card("card--j1") + card("card--j2"));
+  const { d, calls, swaps, tick } = dispatcher(doc);
+  d.frame("job", ["j1", "j2"], [
+    { target: "card--j1", delete: true },
+    { target: "card--j2", html: '<article id="card--j2">new</article>' },
+  ]);
+  await tick();
+  assert.equal(calls.length, 0);
+  assert.equal(
+    swaps[0].text,
+    '<hx-partial hx-target="#card--j1" hx-swap="delete"></hx-partial>' +
+      '<hx-partial hx-target="#card--j2" hx-swap="outerMorph"><article id="card--j2">new</article></hx-partial>',
+  );
+});

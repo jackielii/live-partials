@@ -128,8 +128,8 @@ func TestRender(t *testing.T) {
 		}), nil
 	})
 
-	got := h.Render(ctx, "ann", Frame{Topic: "rows", IDs: []string{"a", "gone", "b/1"}})
-	want := []Fragment{
+	got := h.Render(streamReq(ctx), "ann", Frame{Topic: "rows", IDs: []string{"a", "gone", "b/1"}})
+	want := []Rendered{
 		{Target: "list-row--a", HTML: `<tr id="list-row--a"><td>Alpha for ann</td></tr>`},
 		{Target: "list-row--b_2f1", HTML: `<tr id="list-row--b_2f1"><td>Beta for ann</td></tr>`},
 	}
@@ -147,16 +147,21 @@ func TestRender(t *testing.T) {
 		if name == "no page tree in the context" {
 			c = context.Background()
 		}
-		if got := h.Render(c, "ann", f); len(got) != 0 {
+		if got := h.Render(streamReq(c), "ann", f); len(got) != 0 {
 			t.Errorf("%s: got %v", name, got)
 		}
 	}
 
 	small := NewHub[string](Config{MaxFragment: 60})
 	small.Fragment("rows", listPage.Row, rowFragment(map[string]string{"a": "Alpha", "b/1": "Beta"}))
-	if got := small.Render(ctx, "ann", Frame{Topic: "rows", IDs: []string{"a", "b/1"}}); len(got) != 1 {
+	if got := small.Render(streamReq(ctx), "ann", Frame{Topic: "rows", IDs: []string{"a", "b/1"}}); len(got) != 1 {
 		t.Errorf("past MaxFragment the rest are pulled, got %d fragments", len(got))
 	}
+}
+
+// streamReq is a stream request with ctx.
+func streamReq(ctx context.Context) *http.Request {
+	return httptest.NewRequest("GET", "/events", nil).WithContext(ctx)
 }
 
 type sseEvent struct{ name, data string }
@@ -245,7 +250,7 @@ func (eventsRoute) ServeHTTP(w http.ResponseWriter, r *http.Request, h *Hub[stri
 
 func TestWriteFrame(t *testing.T) {
 	var b strings.Builder
-	WriteFrame(&b, Frame{Topic: "t", IDs: []string{"a"}}, Fragment{Target: "x--a", HTML: "<p id=\"x--a\">\n</p>"})
+	WriteFrame(&b, Frame{Topic: "t", IDs: []string{"a"}}, Rendered{Target: "x--a", HTML: "<p id=\"x--a\">\n</p>"})
 	WriteFrame(&b, Frame{Topic: "v", Values: map[string]string{"a": "1"}})
 	WriteFrame(&b, Frame{Topic: "w"})
 	want := fmt.Sprint(

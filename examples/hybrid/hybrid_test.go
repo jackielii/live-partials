@@ -45,7 +45,7 @@ type stream struct {
 type frameData struct {
 	IDs       []string
 	Values    map[string]string
-	Fragments []live.Fragment
+	Fragments []live.Rendered
 }
 
 // openStream opens the stream as v; since "" asks for a resync.

@@ -8,10 +8,12 @@
 //   - a value frame (PublishValues): a topic and key → value pairs that every
 //     recipient may see. The dispatcher writes each value into every element
 //     marked with Value or ValueText for that key; nothing is fetched.
-//   - a fragment frame: a signal whose topic has components registered with
-//     Hub.Fragment. Each subscriber's stream renders them for its own viewer
-//     and sends the HTML with the signal; the dispatcher morphs it into the
-//     element with that id and refetches only what no fragment covered.
+//   - a fragment frame: a signal whose topic has components a page declares
+//     (Pusher, found by Hub.Pages at mount) or registered with Hub.Fragment.
+//     Each subscriber's stream renders them for its own viewer, through the
+//     page's handler, and sends the HTML with the signal; the dispatcher
+//     morphs it into the element with that id and refetches only what no
+//     fragment covered.
 package live
 
 import (
@@ -23,6 +25,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/jackielii/structpages"
 )
 
 // Frame is one signal: a topic and the ids it concerns. Nil IDs means the
@@ -59,6 +63,9 @@ type Config struct {
 	Heartbeat    time.Duration // SSE comment interval [15s]
 	WriteTimeout time.Duration // deadline for each SSE write [10s]
 	MaxFragment  int           // bytes of rendered fragments per frame; the rest are pulled [256 KiB]
+	// Selector must be the TargetSelector given to Mount; a page fragment's
+	// target is selected with it, as for a batch [HTMXv4RenderTarget].
+	Selector structpages.TargetSelector
 }
 
 func (c Config) withDefaults() Config {
@@ -80,6 +87,9 @@ func (c Config) withDefaults() Config {
 	if c.MaxFragment == 0 {
 		c.MaxFragment = 256 << 10
 	}
+	if c.Selector == nil {
+		c.Selector = structpages.HTMXv4RenderTarget
+	}
 	return c
 }
 
@@ -94,6 +104,7 @@ type Hub[V any] struct {
 	mu        sync.Mutex
 	subs      map[*Subscription]V
 	fragments map[string][]fragment[V]
+	pages     map[string][]pageFragment
 	current   map[string]CurrentFunc[V]
 }
 
@@ -111,6 +122,7 @@ func NewHub[V any](cfg Config) *Hub[V] {
 		epoch:     rand.Text()[:10],
 		subs:      map[*Subscription]V{},
 		fragments: map[string][]fragment[V]{},
+		pages:     map[string][]pageFragment{},
 		current:   map[string]CurrentFunc[V]{},
 	}
 }

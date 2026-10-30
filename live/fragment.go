@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 
 	"github.com/jackielii/structpages"
 )
@@ -34,7 +35,10 @@ type fragment[V any] struct {
 	render    FragmentFunc[V]
 }
 
-// Fragment registers component as pushed on the stream for signals of topic:
+// Fragment registers component as pushed on the stream for signals of topic,
+// rendered by a function beside the page rather than through it (the hybrid
+// stage; a page declaring Live and Pages is the alternative that keeps Props
+// the only loader):
 // for each id of a frame, each subscriber's stream calls render with its own
 // viewer and sends the HTML, whose root element must carry the id
 // structpages.Key(ctx, component, id). component is the method expression the
@@ -53,23 +57,31 @@ func (h *Hub[V]) Current(topic string, current CurrentFunc[V]) {
 	h.current[topic] = current
 }
 
-// Fragment is one rendered element of a fragment frame.
-type Fragment struct {
+// Rendered is one element of a fragment frame: its HTML, or Delete when the
+// page answered 404.
+type Rendered struct {
 	Target string `json:"target"` // the element's id
-	HTML   string `json:"html"`
+	HTML   string `json:"html,omitempty"`
+	Delete bool   `json:"delete,omitempty"`
 }
 
-// Render renders the fragments registered for f's topic, for viewer. A
-// fragment that fails to render, or whose root element is not its target,
-// is left out (logged unless it is ErrNotFound), as is any past
-// Config.MaxFragment bytes; the dispatcher refetches those elements.
-func (h *Hub[V]) Render(ctx context.Context, viewer V, f Frame) []Fragment {
-	regs := h.fragments[f.Topic]
-	if len(regs) == 0 || f.Values != nil || len(f.IDs) == 0 {
+// Render renders f's fragments for the subscriber whose stream request is r
+// and whose viewer is viewer: those of pages declaring Live (through the
+// page, see Pages) and those registered with Fragment. A fragment that fails
+// to render, is not 200 (404 deletes the element), or whose root element is
+// not its target is left out, as is any past Config.MaxFragment bytes; the
+// dispatcher refetches those elements.
+func (h *Hub[V]) Render(r *http.Request, viewer V, f Frame) []Rendered {
+	if f.Values != nil || len(f.IDs) == 0 {
 		return nil
 	}
-	var out []Fragment
 	size := 0
+	out := h.renderPages(r, f, &size)
+	regs := h.fragments[f.Topic]
+	if len(regs) == 0 {
+		return out
+	}
+	ctx := r.Context()
 	for _, id := range f.IDs {
 		for _, reg := range regs {
 			target, err := structpages.Key(ctx, reg.component, id)
@@ -87,7 +99,7 @@ func (h *Hub[V]) Render(ctx context.Context, viewer V, f Frame) []Fragment {
 					case size+b.Len() > h.cfg.MaxFragment:
 					default:
 						size += b.Len()
-						out = append(out, Fragment{Target: target, HTML: b.String()})
+						out = append(out, Rendered{Target: target, HTML: b.String()})
 					}
 					continue
 				}

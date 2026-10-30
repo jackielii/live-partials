@@ -20,14 +20,14 @@ import (
 // the resync is skipped. The query stays the same on reconnect, so a
 // reconnect after anything was published still resyncs.
 //
-// Fragments (Hub.Fragment) are rendered here, in the subscriber's own
-// goroutine, as viewer and with r's context; serve the stream from a
-// structpages route so that context carries the page tree.
+// Fragments are rendered here, in the subscriber's own goroutine, as viewer
+// and with r's context, cookies and headers; serve the stream from a
+// structpages route of the same Mount so that context carries the page tree.
 //
 // A host with a durable source (an outbox with ids, replayed from
 // Last-Event-ID) writes its own handler instead: replay its rows with
 // WriteEvent, then Subscribe and select over its feed, Subscription.Ready and
-// Subscription.Ended, writing frames with WriteFrame(w, f, h.Render(ctx,
+// Subscription.Ended, writing frames with WriteFrame(w, f, h.Render(r,
 // viewer, f)...) and resyncs with WriteResync. Topic frames carry no id, so
 // they never move the browser's Last-Event-ID.
 func (h *Hub[V]) ServeSSE(w http.ResponseWriter, r *http.Request, viewer V) error {
@@ -78,7 +78,7 @@ func (h *Hub[V]) ServeSSE(w http.ResponseWriter, r *http.Request, viewer V) erro
 					return WriteResync(w, h.CurrentValues(ctx, viewer))
 				}
 				for _, f := range frames {
-					if err := WriteFrame(w, f, h.Render(ctx, viewer, f)...); err != nil {
+					if err := WriteFrame(w, f, h.Render(r, viewer, f)...); err != nil {
 						return err
 					}
 				}
@@ -93,8 +93,8 @@ func (h *Hub[V]) ServeSSE(w http.ResponseWriter, r *http.Request, viewer V) erro
 // WriteFrame writes a frame as an SSE event named after the topic, with data
 // {"ids":[…]} ({} for the whole topic), {"values":{key:value,…}} for a value
 // frame, and "fragments":[{"target":id,"html":…},…] beside the ids when
-// fragments are given.
-func WriteFrame(w io.Writer, f Frame, fragments ...Fragment) error {
+// fragments are given ({"target":id,"delete":true} for an element removed).
+func WriteFrame(w io.Writer, f Frame, fragments ...Rendered) error {
 	var data bytes.Buffer
 	enc := json.NewEncoder(&data)
 	// The data is read by JSON.parse, never placed in HTML: escaping <, >
@@ -103,7 +103,7 @@ func WriteFrame(w io.Writer, f Frame, fragments ...Fragment) error {
 	if err := enc.Encode(struct {
 		IDs       []string          `json:"ids,omitempty"`
 		Values    map[string]string `json:"values,omitempty"`
-		Fragments []Fragment        `json:"fragments,omitempty"`
+		Fragments []Rendered        `json:"fragments,omitempty"`
 	}{f.IDs, f.Values, fragments}); err != nil {
 		return err
 	}

@@ -2,7 +2,8 @@
 // element is live when it carries data-live="<topic>" and, for one keyed
 // instance, data-live-key="<key>" (live.On on the server). A frame is a
 // signal ({"ids":[…]}), a value frame ({"values":{key:value}}) or a signal
-// carrying rendered fragments ({"ids":[…],"fragments":[{target,html}]}).
+// carrying rendered fragments ({"ids":[…],"fragments":[{target,html}]}, or
+// {target,delete:true} for an element the page no longer has).
 //
 // Value frames are written into every value listener of the topic and key
 // (data-live-value="<topic>" data-live-value-key="<key>", live.Value): into
@@ -208,7 +209,7 @@ export function createDispatcher({ root = document, htmx, maxTargets = 64, sched
     fetch.forEach(queue);
   }
 
-  // push morphs each fragment into the element with its id, in one htmx swap
+  // push morphs each fragment into the element with its id (or deletes it), in one htmx swap
   // so the page's swap events and processing apply. Fragments whose element
   // is absent are ignored; one inside a planned refetch is left to it (outer
   // wins); a dirty element is spared as for a refetch. It returns the planned
@@ -217,7 +218,7 @@ export function createDispatcher({ root = document, htmx, maxTargets = 64, sched
     const html = new Map();
     for (const f of fragments) {
       const el = root.getElementById?.(f.target) ?? root.querySelector?.(`#${cssID(f.target)}`);
-      if (el) html.set(el, f.html);
+      if (el) html.set(el, f.delete ? null : f.html ?? "");
     }
     if (html.size === 0) return planned;
     let targets = outermost([...html.keys()]);
@@ -228,7 +229,11 @@ export function createDispatcher({ root = document, htmx, maxTargets = 64, sched
     stale.forEach(markStale);
     if (clean.length) {
       const text = clean
-        .map((t) => `<hx-partial hx-target="${attr("#" + cssID(t.id))}" hx-swap="outerMorph">${html.get(t)}</hx-partial>`)
+        .map((t) => {
+          const h = html.get(t);
+          const swap = h === null ? "delete" : "outerMorph";
+          return `<hx-partial hx-target="${attr("#" + cssID(t.id))}" hx-swap="${swap}">${h ?? ""}</hx-partial>`;
+        })
         .join("");
       htmx.swap({ text, sourceElement: root.body ?? root, swap: "none" });
     }
