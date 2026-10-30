@@ -5,8 +5,8 @@
     "bytes": 663,
     "queries": 2,
     "swaps": 2,
-    "server": 0.1,
-    "swapms": 1,
+    "server": 0.13,
+    "swapms": 0.9,
     "urls": 1
   },
   "1 three rows in one frame": {
@@ -16,7 +16,7 @@
     "queries": 2,
     "swaps": 4,
     "server": 0.14,
-    "swapms": 1.1,
+    "swapms": 1.2,
     "urls": 1
   },
   "2 one person, three places": {
@@ -25,7 +25,7 @@
     "bytes": 1068,
     "queries": 3,
     "swaps": 3,
-    "server": 0.18,
+    "server": 0.22,
     "swapms": 1.1,
     "urls": 2
   },
@@ -35,7 +35,7 @@
     "bytes": 717,
     "queries": 1,
     "swaps": 1,
-    "server": 0.11,
+    "server": 0.1,
     "swapms": 0.8,
     "urls": 1
   },
@@ -45,8 +45,8 @@
     "bytes": 1436,
     "queries": 4,
     "swaps": 4,
-    "server": 0.2,
-    "swapms": 1.1,
+    "server": 0.16,
+    "swapms": 1,
     "urls": 1
   },
   "5 burst of 50": {
@@ -55,8 +55,8 @@
     "bytes": 7171,
     "queries": 2,
     "swaps": 2,
-    "server": 0.23,
-    "swapms": 1.5,
+    "server": 0.21,
+    "swapms": 1.6,
     "urls": 1
   },
   "6 progress tick": {
@@ -65,8 +65,8 @@
     "bytes": 304,
     "queries": 1,
     "swaps": 1,
-    "server": 0.07,
-    "swapms": 0.8,
+    "server": 0.1,
+    "swapms": 0.7,
     "urls": 1
   },
   "6 status change": {
@@ -75,8 +75,28 @@
     "bytes": 704,
     "queries": 1,
     "swaps": 1,
-    "server": 0.07,
-    "swapms": 0.9,
+    "server": 0.08,
+    "swapms": 0.8,
+    "urls": 1
+  },
+  "8 filter change": {
+    "frames": 0,
+    "requests": 1,
+    "bytes": 4974,
+    "queries": 2,
+    "swaps": 1,
+    "server": 0.1,
+    "swapms": 3.3,
+    "urls": 1
+  },
+  "8 change inside the filter": {
+    "frames": 1,
+    "requests": 1,
+    "bytes": 557,
+    "queries": 2,
+    "swaps": 2,
+    "server": 0.09,
+    "swapms": 0.8,
     "urls": 1
   },
   "resync on connect": {

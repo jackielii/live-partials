@@ -1,0 +1,123 @@
+{
+  "1 one row of ten": {
+    "frames": 2,
+    "requests": 0,
+    "bytes": 547,
+    "queries": 2,
+    "swaps": 2,
+    "server": 0.03,
+    "swapms": 0.8,
+    "urls": 0,
+    "connects": 0
+  },
+  "1 three rows in one frame": {
+    "frames": 4,
+    "requests": 0,
+    "bytes": 889,
+    "queries": 2,
+    "swaps": 4,
+    "server": 0.02,
+    "swapms": 1,
+    "urls": 0,
+    "connects": 0
+  },
+  "2 one person, three places": {
+    "frames": 3,
+    "requests": 0,
+    "bytes": 837,
+    "queries": 2,
+    "swaps": 3,
+    "server": 0.02,
+    "swapms": 0.8,
+    "urls": 0,
+    "connects": 0
+  },
+  "3 neighbour row edited": {
+    "frames": 1,
+    "requests": 0,
+    "bytes": 94,
+    "queries": 1,
+    "swaps": 1,
+    "server": 0.01,
+    "swapms": 0.5,
+    "urls": 0,
+    "connects": 0
+  },
+  "4 upload, then delete": {
+    "frames": 4,
+    "requests": 0,
+    "bytes": 1135,
+    "queries": 4,
+    "swaps": 4,
+    "server": 0.06,
+    "swapms": 1.1,
+    "urls": 0,
+    "connects": 0
+  },
+  "5 burst of 50": {
+    "frames": 2,
+    "requests": 0,
+    "bytes": 4551,
+    "queries": 2,
+    "swaps": 2,
+    "server": 0.09,
+    "swapms": 1.4,
+    "urls": 0,
+    "connects": 0
+  },
+  "6 progress tick": {
+    "frames": 1,
+    "requests": 0,
+    "bytes": 227,
+    "queries": 1,
+    "swaps": 1,
+    "server": 0.01,
+    "swapms": 0.6,
+    "urls": 0,
+    "connects": 0
+  },
+  "6 status change": {
+    "frames": 1,
+    "requests": 0,
+    "bytes": 534,
+    "queries": 1,
+    "swaps": 1,
+    "server": 0.03,
+    "swapms": 0.8,
+    "urls": 0,
+    "connects": 0
+  },
+  "8 filter change": {
+    "frames": 2,
+    "requests": 0,
+    "bytes": 1502,
+    "queries": 2,
+    "swaps": 2,
+    "server": 0.02,
+    "swapms": 0.3,
+    "urls": 0,
+    "connects": 1
+  },
+  "8 change inside the filter": {
+    "frames": 1,
+    "requests": 0,
+    "bytes": 384,
+    "queries": 1,
+    "swaps": 1,
+    "server": 0.02,
+    "swapms": 0.3,
+    "urls": 0,
+    "connects": 0
+  },
+  "resync on connect": {
+    "frames": 0,
+    "requests": 0,
+    "bytes": 0,
+    "queries": 0,
+    "swaps": 0,
+    "server": 0,
+    "swapms": 0,
+    "urls": 0,
+    "connects": 1
+  }
+}

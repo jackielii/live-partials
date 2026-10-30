@@ -10,6 +10,7 @@ themselves, then the library support that made most of them unnecessary. Each st
 | `direct` | 1. naive: per-element `hx-trigger`, a route per fragment | a route, a page struct, a hand-built id, a filtered trigger |
 | `extracted-v1` | 2. extracted: `live.On`, a dispatcher, own keyed ids, `POST /live` | an attribute, an id filter, a Props branch |
 | `structpages-keys` | 3. library: structpages keys, a page middleware for batching | the same, with stock structpages filters and no endpoint |
+| `datastar` | comparison: the same cases on Datastar 1.0.4, server-pushed HTML and signals | an id, plus a branch in the page's stream push for every component a topic touches |
 
 ## The problem
 
@@ -26,6 +27,8 @@ ids. Six cases, each taken from a real EOS screen (realtime design §7):
 | 4 | insert and delete | Files browse | an upload appears in order, a deletion disappears |
 | 5 | burst | Orbit import writing 50 series in 100 ms | every change lands without 50 requests |
 | 6 | nested levels | ACOSS operations job panel | a progress tick updates the bar; a status change updates the card once |
+| 7 | fan-out | any shared screen | one change seen by 50 viewers: what the server and the wire pay (Go test) |
+| 8 | URL state | Orbit catalog filters | a filtered list whose filter is in the URL survives Back, Forward and reload, and stays live |
 
 ## Stage 1: direct (`git checkout direct`)
 
@@ -91,6 +94,30 @@ serves the rest of the batch from that. Measured on case 1 with three rows chang
 store queries instead of 4** (rows + summary), `examples/lab/lab_test.go`.
 
 **No gsx change.** `{ live.On(…)... }` is an ordinary attribute spread and `key` an ordinary filter.
+
+## Comparison: Datastar (`git checkout datastar`)
+
+Not a stage of the design above: evidence for a comparison. `examples/datastar` writes the same
+cases (sharing `examples/labdata`'s store and simulation, and `live.Hub`) the idiomatic Datastar
+way: each page opens one stream (`data-init="@get('<page>/updates')"`), and for every hub frame
+the page's stream renders what that page shows for its viewer and pushes
+`datastar-patch-elements` (morphed by structpages `key` ids) or, for the editor,
+`datastar-patch-signals`. No request is made for a live change. Cases 7 (fan-out, a Go test in both
+stages) and 8 (URL state, in both) were added to stress the differences.
+
+The client is Datastar **1.0.4**, the latest release (2026-09-21). Its 1.x bundles are published
+only in the GitHub repository (npm's `latest` is still `1.0.0-beta.11`), so
+`examples/datastar/web/vendor/datastar-1.0.4.js` is `bundles/datastar.js` from tag v1.0.4 with its
+source-map comment removed, MIT licence beside it; to upgrade, replace the file and its name. The
+server uses `github.com/starfederation/datastar-go` v1.2.2. No Datastar Pro feature is used: the
+ones case 8 wanted (`data-query-string`, `data-replace-url`) are Pro, whose licence excludes public
+and open-source repositories.
+
+Headline (docs/findings.md, "Datastar vs htmx + live.js"): Datastar makes no request per change,
+so latency and server CPU on fan-out are about an order of magnitude lower (50 viewers: 11 against
+80 CPU ms, 1.4 against 13 ms until the last tab is updated); stage 3 needs less code per component
+(308 against 460 lines for the cases), gets dirty-editor protection and URL state generically, and has safer
+reconnect and authorisation defaults.
 
 ## Final per-component cost
 
@@ -207,11 +234,19 @@ start({ stream: "#stream" });
 ## Run each stage
 
 ```sh
-git checkout direct          # or extracted-v1, structpages-keys
+git checkout direct          # or extracted-v1, structpages-keys, datastar
 npm install
-npm run dev                  # http://localhost:5173: six cases, a "simulate other users" panel, a meter
-npm run e2e                  # Playwright, including measure.spec.ts
+npm run dev                  # http://localhost:5173: the cases, a "simulate other users" panel, a meter
+npm run dev:datastar         # (datastar tag) http://localhost:5174: the Datastar app
+npm run e2e                  # Playwright, including measure.spec.ts; from datastar on, both apps
 ```
+
+From the `datastar` tag Playwright has two projects, `lab` (port 8899) and `datastar` (8898);
+`npx playwright test -c e2e --project=datastar` runs only the Datastar app. The Datastar meter
+counts the same things from the stream itself: frames are stream events, bytes include them, and
+server ms and queries arrive in a `lab-meter` event after each push. Each simulate panel has
+"Restart the server's streams" (`/sim/drop-streams`), which ends every stream and refuses new ones
+for a second.
 
 The meter counts frames, requests, response bytes, swaps, server and swap time for the tab (stage 3
 adds store queries). [docs/findings.md](docs/findings.md) has the numbers for all three stages;
@@ -220,8 +255,9 @@ adds store queries). [docs/findings.md](docs/findings.md) has the numbers for al
 ## Test
 
 ```sh
-go test ./...        # hub, middleware (per-target failure, aborts, triggers, query counting), lab
+go test ./...        # hub, middleware (per-target failure, aborts, triggers, query counting), lab,
+                     # Datastar streams, and case 7 (FANOUT_N=200 for more subscribers)
 npm run test:js      # dispatcher rules (node --test + jsdom)
-npm run e2e          # the six cases, two tabs, caret, dispatcher costs, measurements
+npm run e2e          # every case in both apps, two tabs, two viewers, caret, reconnect, costs, measurements
 go tool structpages-lint ./...
 ```

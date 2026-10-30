@@ -1,0 +1,44 @@
+{
+  "structpages-keys": {
+    "stage": "structpages-keys",
+    "subscribers": 50,
+    "requests": 50,
+    "bytes": 35150,
+    "brotli": 15850,
+    "queries": 100,
+    "renders": 100,
+    "server_ms": 60.85,
+    "cpu_ms": 79.676,
+    "p50_ms": 11.202,
+    "max_ms": 13.433,
+    "per_tab_bytes": 703
+  },
+  "datastar": {
+    "stage": "datastar",
+    "subscribers": 50,
+    "requests": 0,
+    "bytes": 27300,
+    "brotli": 0,
+    "queries": 100,
+    "renders": 100,
+    "server_ms": 1.13,
+    "cpu_ms": 10.998,
+    "p50_ms": 1.021,
+    "max_ms": 1.402,
+    "per_tab_bytes": 546
+  },
+  "datastar-brotli": {
+    "stage": "datastar-brotli",
+    "subscribers": 50,
+    "requests": 0,
+    "bytes": 27300,
+    "brotli": 15750,
+    "queries": 100,
+    "renders": 100,
+    "server_ms": 5.15,
+    "cpu_ms": 13.38,
+    "p50_ms": 0.841,
+    "max_ms": 1.216,
+    "per_tab_bytes": 546
+  }
+}
