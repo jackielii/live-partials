@@ -74,3 +74,10 @@ test("a focused, unedited field in a row that changes keeps focus", async ({ pag
   await expect(d2).toBeFocused();
   await expect(d2).toHaveValue("4007");
 });
+
+test("reconnect: a change made while the stream was down arrives on reconnect", async ({ page }) => {
+  await open(page, "/series");
+  await post(page, "drop-streams");
+  await post(page, "series-touch", "s3");
+  await expect(page.locator("#series-row--s3 [data-testid=points]")).toHaveText("307", { timeout: 10_000 });
+});

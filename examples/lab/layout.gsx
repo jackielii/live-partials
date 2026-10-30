@@ -32,6 +32,7 @@ component Layout(title string, panel gsx.Node, children gsx.Node, s *store, h *h
 						<a href={filesPage{} |> url}>4 · Files</a>
 						<a href={burstPage{} |> url}>5 · Burst</a>
 						<a href={jobsPage{} |> url}>6 · Jobs</a>
+						<a href={catalogPage{} |> url}>8 · Filtered catalog</a>
 					</nav>
 					<h2 class="mt-4 text-xs font-semibold uppercase text-stone-500">Direct messages</h2>
 					<ul class="flex flex-col gap-1 text-sm" data-testid="sidebar-people">
@@ -62,6 +63,7 @@ component Layout(title string, panel gsx.Node, children gsx.Node, s *store, h *h
 					<section class="flex flex-col gap-2 rounded border border-amber-300 bg-amber-50 p-3 text-sm" data-testid="sim">
 						<h2 class="text-xs font-semibold uppercase text-amber-800">Simulate other users</h2>
 						{ panel }
+						<SimButton action="drop-streams" id="">Restart the server's streams</SimButton>
 					</section>
 				</aside>
 			</div>

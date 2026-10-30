@@ -134,80 +134,95 @@ func _gsxrenderLayout(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer, title string, 
 	}
 	_gsxgw.S(" href=\"")
 	_gsxgw.URL(string(_gsxv6))
-	_gsxgw.S("\">6 · Jobs</a></nav>")
-//line layout.gsx:36:6
-	_gsxgw.S("<h2 class=\"mt-4 text-xs font-semibold uppercase text-stone-500\">Direct messages</h2>")
+	_gsxgw.S("\">6 · Jobs</a>")
+//line layout.gsx:35:7
+	_gsxgw.S("<a")
+	_gsxv7, _gsxerr := /*line layout.gsx:35:33*/ _gsxf0.URLFor(ctx, ( /*line layout.gsx:35:16*/ catalogPage{}))
+	if _gsxerr != nil {
+		return _gsxerr
+	}
+	_gsxgw.S(" href=\"")
+	_gsxgw.URL(string(_gsxv7))
+	_gsxgw.S("\">8 · Filtered catalog</a></nav>")
 //line layout.gsx:37:6
+	_gsxgw.S("<h2 class=\"mt-4 text-xs font-semibold uppercase text-stone-500\">Direct messages</h2>")
+//line layout.gsx:38:6
 	_gsxgw.S("<ul class=\"flex flex-col gap-1 text-sm\" data-testid=\"sidebar-people\">")
-//line layout.gsx:38:7
-	shell := shellPage{}
 //line layout.gsx:39:7
-	for /*line layout.gsx:39:13*/ _, pr := range s.People() {
-//line layout.gsx:40:8
-		_gsxgw.Node(ctx, shell.DM( /*line layout.gsx:40:22*/ pr))
+	shell := shellPage{}
+//line layout.gsx:40:7
+	for /*line layout.gsx:40:13*/ _, pr := range s.People() {
+//line layout.gsx:41:8
+		_gsxgw.Node(ctx, shell.DM( /*line layout.gsx:41:22*/ pr))
 	}
 	_gsxgw.S("</ul></aside>")
-//line layout.gsx:44:5
+//line layout.gsx:45:5
 	_gsxgw.S("<main class=\"flex flex-col gap-6 p-6\">")
-//line layout.gsx:45:6
-	_gsxgw.S("<h1 class=\"text-xl font-semibold\">")
-//line layout.gsx:45:40
-	_gsxgw.Text(string( /*line layout.gsx:45:42*/ title))
-	_gsxgw.S("</h1>")
 //line layout.gsx:46:6
-	_gsxgw.Node(ctx /*line layout.gsx:46:8*/, children)
+	_gsxgw.S("<h1 class=\"text-xl font-semibold\">")
+//line layout.gsx:46:40
+	_gsxgw.Text(string( /*line layout.gsx:46:42*/ title))
+	_gsxgw.S("</h1>")
+//line layout.gsx:47:6
+	_gsxgw.Node(ctx /*line layout.gsx:47:8*/, children)
 	_gsxgw.S("</main>")
-//line layout.gsx:48:5
+//line layout.gsx:49:5
 	_gsxgw.S("<aside class=\"flex flex-col gap-4 border-l border-stone-200 bg-white p-4\">")
-//line layout.gsx:49:6
+//line layout.gsx:50:6
 	_gsxgw.S("<section id=\"meter\" class=\"rounded border border-stone-200 p-3 text-xs\" data-testid=\"meter\">")
-//line layout.gsx:50:7
-	_gsxgw.S("<h2 class=\"mb-2 font-semibold uppercase text-stone-500\">This tab</h2>")
 //line layout.gsx:51:7
+	_gsxgw.S("<h2 class=\"mb-2 font-semibold uppercase text-stone-500\">This tab</h2>")
+//line layout.gsx:52:7
 	_gsxgw.S("<dl class=\"grid grid-cols-2 gap-1\">")
-//line layout.gsx:52:8
-	_gsxgw.S("<dt>Frames</dt>")
-//line layout.gsx:52:23
-	_gsxgw.S("<dd data-meter=\"frames\">0</dd>")
 //line layout.gsx:53:8
-	_gsxgw.S("<dt>Requests</dt>")
-//line layout.gsx:53:25
-	_gsxgw.S("<dd data-meter=\"requests\">0</dd>")
+	_gsxgw.S("<dt>Frames</dt>")
+//line layout.gsx:53:23
+	_gsxgw.S("<dd data-meter=\"frames\">0</dd>")
 //line layout.gsx:54:8
-	_gsxgw.S("<dt>Bytes</dt>")
-//line layout.gsx:54:22
-	_gsxgw.S("<dd data-meter=\"bytes\">0</dd>")
+	_gsxgw.S("<dt>Requests</dt>")
+//line layout.gsx:54:25
+	_gsxgw.S("<dd data-meter=\"requests\">0</dd>")
 //line layout.gsx:55:8
-	_gsxgw.S("<dt>Queries</dt>")
-//line layout.gsx:55:24
-	_gsxgw.S("<dd data-meter=\"queries\">0</dd>")
+	_gsxgw.S("<dt>Bytes</dt>")
+//line layout.gsx:55:22
+	_gsxgw.S("<dd data-meter=\"bytes\">0</dd>")
 //line layout.gsx:56:8
-	_gsxgw.S("<dt>Swaps</dt>")
-//line layout.gsx:56:22
-	_gsxgw.S("<dd data-meter=\"swaps\">0</dd>")
+	_gsxgw.S("<dt>Queries</dt>")
+//line layout.gsx:56:24
+	_gsxgw.S("<dd data-meter=\"queries\">0</dd>")
 //line layout.gsx:57:8
-	_gsxgw.S("<dt>Server ms</dt>")
-//line layout.gsx:57:26
-	_gsxgw.S("<dd data-meter=\"server\">0</dd>")
+	_gsxgw.S("<dt>Swaps</dt>")
+//line layout.gsx:57:22
+	_gsxgw.S("<dd data-meter=\"swaps\">0</dd>")
 //line layout.gsx:58:8
+	_gsxgw.S("<dt>Server ms</dt>")
+//line layout.gsx:58:26
+	_gsxgw.S("<dd data-meter=\"server\">0</dd>")
+//line layout.gsx:59:8
 	_gsxgw.S("<dt>Swap ms</dt>")
-//line layout.gsx:58:24
+//line layout.gsx:59:24
 	_gsxgw.S("<dd data-meter=\"swapms\">0</dd></dl>")
-//line layout.gsx:60:7
+//line layout.gsx:61:7
 	_gsxgw.S("<button type=\"button\" class=\"mt-2 underline\"")
 	_gsxgw.BoolAttr("data-meter-reset", true)
 	_gsxgw.S(">Reset</button></section>")
-//line layout.gsx:62:6
+//line layout.gsx:63:6
 	_gsxgw.S("<section class=\"flex flex-col gap-2 rounded border border-amber-300 bg-amber-50 p-3 text-sm\" data-testid=\"sim\">")
-//line layout.gsx:63:7
-	_gsxgw.S("<h2 class=\"text-xs font-semibold uppercase text-amber-800\">Simulate other users</h2>")
 //line layout.gsx:64:7
-	_gsxgw.Node(ctx /*line layout.gsx:64:9*/, panel)
+	_gsxgw.S("<h2 class=\"text-xs font-semibold uppercase text-amber-800\">Simulate other users</h2>")
+//line layout.gsx:65:7
+	_gsxgw.Node(ctx /*line layout.gsx:65:9*/, panel)
+//line layout.gsx:66:7
+	_gsxgw.NodeResult(_gsxrenderSimButton(ctx, _gsxgw, "drop-streams", "", _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
+		_gsxgw := _gsxrt.W(_gsxw)
+		_gsxgw.S("Restart the server's streams")
+		return _gsxgw.Err()
+	})))
 	_gsxgw.S("</section></aside></div></body></html>")
 	return _gsxgw.Err()
 }
 
-//line layout.gsx:72:1
+//line layout.gsx:74:1
 func presenceDot(state string) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
@@ -219,29 +234,29 @@ func _gsxrenderpresenceDot(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer, state str
 	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
 		return _gsxerr
 	}
-//line layout.gsx:73:2
+//line layout.gsx:75:2
 	_gsxgw.S("<span")
-	_gsxv7 := /*line layout.gsx:74:11*/ "inline-block size-2.5 rounded-full"
-	var _gsxv8 string
-	switch /*line layout.gsx:74:56*/ state {
-	case /*line layout.gsx:74:69*/ "active":
-		_gsxv8 = /*line layout.gsx:74:79*/ "bg-green-500"
-	case /*line layout.gsx:74:99*/ "idle":
-		_gsxv8 = /*line layout.gsx:74:107*/ "bg-amber-400"
+	_gsxv8 := /*line layout.gsx:76:11*/ "inline-block size-2.5 rounded-full"
+	var _gsxv9 string
+	switch /*line layout.gsx:76:56*/ state {
+	case /*line layout.gsx:76:69*/ "active":
+		_gsxv9 = /*line layout.gsx:76:79*/ "bg-green-500"
+	case /*line layout.gsx:76:99*/ "idle":
+		_gsxv9 = /*line layout.gsx:76:107*/ "bg-amber-400"
 	default:
-		_gsxv8 = /*line layout.gsx:74:131*/ "bg-stone-300"
+		_gsxv9 = /*line layout.gsx:76:131*/ "bg-stone-300"
 	}
 	_gsxgw.S(" class=\"")
-	_gsxgw.Class(_gsxrt.DefaultClassMerge, _gsxrt.Class(_gsxv7), _gsxrt.Class(_gsxv8))
+	_gsxgw.Class(_gsxrt.DefaultClassMerge, _gsxrt.Class(_gsxv8), _gsxrt.Class(_gsxv9))
 	_gsxgw.S("\" data-presence=\"")
-	_gsxgw.AttrValue(string( /*line layout.gsx:75:18*/ state))
+	_gsxgw.AttrValue(string( /*line layout.gsx:77:18*/ state))
 	_gsxgw.S("\" title=\"")
-	_gsxgw.AttrValue(string( /*line layout.gsx:76:10*/ state))
+	_gsxgw.AttrValue(string( /*line layout.gsx:78:10*/ state))
 	_gsxgw.S("\"></span>")
 	return _gsxgw.Err()
 }
 
-//line layout.gsx:80:1
+//line layout.gsx:82:1
 func SimButton(action string, id string, children gsx.Node) _gsxrt.Node {
 	return _gsxrt.Func(func(ctx _gsxctx.Context, _gsxw _gsxio.Writer) error {
 		_gsxgw := _gsxrt.W(_gsxw)
@@ -253,19 +268,19 @@ func _gsxrenderSimButton(ctx _gsxctx.Context, _gsxgw *_gsxrt.Writer, action stri
 	if _gsxerr := _gsxgw.Err(); _gsxerr != nil {
 		return _gsxerr
 	}
-//line layout.gsx:81:2
+//line layout.gsx:83:2
 	_gsxgw.S("<button type=\"button\" class=\"rounded border border-amber-400 bg-white px-2 py-1 text-left hover:bg-amber-100\"")
-	_gsxv9, _gsxerr := /*line layout.gsx:84:27*/ _gsxf0.URLFor(ctx, ( /*line layout.gsx:84:12*/ simAction{}) /*line layout.gsx:84:31*/, map[string]any{"action": action})
+	_gsxv10, _gsxerr := /*line layout.gsx:86:27*/ _gsxf0.URLFor(ctx, ( /*line layout.gsx:86:12*/ simAction{}) /*line layout.gsx:86:31*/, map[string]any{"action": action})
 	if _gsxerr != nil {
 		return _gsxerr
 	}
 	_gsxgw.S(" hx-post=\"")
-	_gsxgw.AttrValue(string(_gsxv9))
+	_gsxgw.AttrValue(string(_gsxv10))
 	_gsxgw.S("\" hx-vals=\"{&#34;id&#34;: ")
-	_gsxgw.JSValAttr( /*line layout.gsx:85:23*/ id)
+	_gsxgw.JSValAttr( /*line layout.gsx:87:23*/ id)
 	_gsxgw.S("}\" hx-swap=\"none\">")
-//line layout.gsx:87:3
-	_gsxgw.Node(ctx /*line layout.gsx:87:5*/, children)
+//line layout.gsx:89:3
+	_gsxgw.Node(ctx /*line layout.gsx:89:5*/, children)
 	_gsxgw.S("</button>")
 	return _gsxgw.Err()
 }

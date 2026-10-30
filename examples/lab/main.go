@@ -31,24 +31,32 @@ var everyone = live.AudienceFunc[string](func(string) bool { return true })
 var distFS embed.FS
 
 type pages struct {
-	home   homePage   `route:"/{$} Lab"`
-	shell  shellPage  `route:"GET /shell Shell"`
-	series seriesPage `route:"/series Series catalog"`
-	people peoplePage `route:"/people People"`
-	drafts draftsPage `route:"/drafts Report draft"`
-	save   saveDraft  `route:"POST /drafts/{rowId} Save draft row"`
-	files  filesPage  `route:"/files Files"`
-	burst  burstPage  `route:"/burst Burst"`
-	jobs   jobsPage   `route:"/jobs Jobs"`
-	sim    simAction  `route:"POST /sim/{action} Simulate"`
+	home    homePage    `route:"/{$} Lab"`
+	shell   shellPage   `route:"GET /shell Shell"`
+	series  seriesPage  `route:"/series Series catalog"`
+	people  peoplePage  `route:"/people People"`
+	drafts  draftsPage  `route:"/drafts Report draft"`
+	save    saveDraft   `route:"POST /drafts/{rowId} Save draft row"`
+	files   filesPage   `route:"/files Files"`
+	burst   burstPage   `route:"/burst Burst"`
+	jobs    jobsPage    `route:"/jobs Jobs"`
+	catalog catalogPage `route:"/catalog Filtered catalog"`
+	sim     simAction   `route:"POST /sim/{action} Simulate"`
 }
 
 func newHandler(v *vite.Vite) (http.Handler, error) {
 	s := labdata.New()
 	h := live.NewHub[string](live.Config{})
+	d := labdata.NewDropper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
-		if err := h.ServeSSE(w, r, "tab"); err != nil {
+		ctx, release, ok := d.Stream(r.Context())
+		defer release()
+		if !ok {
+			http.Error(w, "restarting", http.StatusServiceUnavailable)
+			return
+		}
+		if err := h.ServeSSE(w, r.WithContext(ctx), "tab"); err != nil {
 			slog.DebugContext(r.Context(), "stream ended", "err", err)
 		}
 	})
@@ -56,7 +64,7 @@ func newHandler(v *vite.Vite) (http.Handler, error) {
 		mux.Handle("/static/", v.StaticHandler())
 	}
 	if _, err := structpages.Mount(mux, pages{}, "/", "Lab",
-		structpages.WithArgs(h),
+		structpages.WithArgs(h, d),
 		structpages.WithRequestArgs(s.ForRequest),
 		structpages.WithTargetSelector(structpages.HTMXv4RenderTarget),
 		structpages.WithMiddlewares(live.Middleware),
@@ -78,11 +86,16 @@ func errorHandler(w http.ResponseWriter, r *http.Request, err error) {
 
 type simAction struct{}
 
-func (simAction) ServeHTTP(w http.ResponseWriter, r *http.Request, s *store, h *hub) error {
+func (simAction) ServeHTTP(w http.ResponseWriter, r *http.Request, s *store, h *hub, d *labdata.Dropper) error {
 	publish := func(topic string, ids ...string) {
 		h.Publish(context.WithoutCancel(r.Context()), everyone, topic, ids...)
 	}
-	err := labdata.Simulate(s, r.PathValue("action"), r.FormValue("id"), publish)
+	var err error
+	if action := r.PathValue("action"); action == "drop-streams" {
+		d.Drop(time.Second)
+	} else {
+		err = labdata.Simulate(s, action, r.FormValue("id"), publish)
+	}
 	if errors.Is(err, labdata.ErrUnknownAction) {
 		return fmt.Errorf("%w: %w", err, errNotFound)
 	}
