@@ -6,13 +6,15 @@ export default defineConfig({
   // time keeps each meter reading its own frames.
   workers: 1,
   projects: [
-    { name: "lab", testIgnore: /(datastar|hybrid)\//, use: { baseURL: "http://localhost:8899" } },
+    { name: "lab", testIgnore: /(datastar|hybrid|pagefrag)\//, use: { baseURL: "http://localhost:8899" } },
     { name: "datastar", testDir: "./datastar", use: { baseURL: "http://localhost:8898" } },
     { name: "hybrid", testDir: "./hybrid", use: { baseURL: "http://localhost:8897" } },
+    { name: "pagefrag", testDir: "./pagefrag", use: { baseURL: "http://localhost:8896" } },
   ],
   webServer: [
     { command: "npm run e2e:serve", port: 8899, reuseExistingServer: !process.env.CI, timeout: 120_000 },
     { command: "npm run e2e:serve:datastar", port: 8898, reuseExistingServer: !process.env.CI, timeout: 120_000 },
     { command: "npm run e2e:serve:hybrid", port: 8897, reuseExistingServer: !process.env.CI, timeout: 120_000 },
+    { command: "npm run e2e:serve:pagefrag", port: 8896, reuseExistingServer: !process.env.CI, timeout: 120_000 },
   ],
 });

@@ -12,3 +12,5 @@
 /lab
 /datastar
 /hybrid
+/examples/pagefrag/dist/*
+!/examples/pagefrag/dist/.gitkeep

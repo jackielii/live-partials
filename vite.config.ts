@@ -4,9 +4,9 @@ import { gsx, devFallback } from "@gsxhq/vite-plugin-gsx";
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  // LAB_APP picks the example: "lab" (the htmx stages), "datastar" or "hybrid".
+  // LAB_APP picks the example: "lab" (the htmx stages), "datastar", "hybrid" or "pagefrag".
   const app = process.env.LAB_APP || "lab";
-  const ports = { lab: ["7777", "5173"], datastar: ["7778", "5174"], hybrid: ["7779", "5175"] }[app];
+  const ports = { lab: ["7777", "5173"], datastar: ["7778", "5174"], hybrid: ["7779", "5175"], pagefrag: ["7780", "5176"] }[app];
   const goPort = env.GO_PORT || ports[0];
   const vitePort = parseInt(env.VITE_PORT || ports[1], 10);
   // `gsx dev` injects GSX_DEV_UPSTREAM; standalone vite and builds fall back to GO_PORT.
