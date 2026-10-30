@@ -15,6 +15,9 @@ extracted call site is clearly simpler.
 | Hub (coalescing, audience, SSE) | burst + every case's stream | earned | **live** |
 | Dispatcher (match, outer wins, escalate, batch, dirty, resync) | every case | earned | **live** (`js/live.js`) |
 | Own-write echo suppression | 1 case | not built | possible `Publish` option later |
+| Value frames (hybrid) | 1 case, any presence/badge/count | earned for viewer-independent scalars | **live** (`PublishValues`, `Value`, `ValueText`, `Current`) (§6) |
+| Fragment frames (hybrid) | 2 cases (3, 6) | earned as an opt-in per component, falls back to pull | **live** (`Fragment`, `Render`, `End`) (§6) |
+| Flush through any writer | the hybrid stream behind a non-Flusher wrapper | worth proposing | **structpages** (§7) |
 
 ## 1. structpages keyed ids: shipped in v0.11.0
 
@@ -101,6 +104,10 @@ components be answered by any page (`structpages.WithSharedComponents(ui.BellCou
 with a request-args provider for their data). The batch middleware would then serve shell targets
 from the page's own GET. Decide after the EOS port, not before.
 
+Hybrid (§6) answers the presence case differently: a value frame needs no route at all, so the
+sidebar's dot lost its `shellPage` and `data-live-url`. The proposal stays open only for shell parts
+that show more than a value (the bell's list).
+
 ## 4. gsx: nothing needed
 
 `{ live.On(topic, key)... }` is an ordinary attribute spread and `key` an ordinary structpages
@@ -118,3 +125,31 @@ Earned, and small:
 - `js/live.js`: `start`, plus `createDispatcher`, `plan`, `outermost`, `dirty` for tests.
 
 It depends on structpages for the middleware type, `KeyOf` and `ID`, and on gsx for `gsx.Attrs`.
+- (hybrid) `Hub.PublishValues`, `Hub.Current`, `Hub.Fragment`, `Hub.Render`, `Hub.End`,
+  `live.Value`, `live.ValueText`, `live.Component`, `live.Fragment`, `live.WriteResync`; in
+  `js/live.js`, `setValues` and the dispatcher's `values` and `frame(topic, ids, fragments)`.
+
+## 6. Value and fragment frames (hybrid)
+
+Both ride the existing stream and frame shape, so a host adopts them per topic and per component, and
+everything else stays signal + pull. Neither needs structpages or gsx changes: fragment ids come from
+`structpages.Key` with the stream request's context, which carries the page tree when the stream is
+a structpages route (`ServeHTTP` page). A stream served from a plain mux route gets no page tree,
+every fragment fails to get its id, and the page silently pulls (logged).
+
+Not proposed: a per-page subscription telling the stream which components the tab shows. It would
+save the renders for subscribers who are in a topic's audience but on another page (measured in
+findings), at the cost of the client describing its composition to the server, which is what this
+design avoids. Narrow audiences are the lever instead.
+
+## 7. structpages: flush through the writer chain
+
+structpages' buffered writer (`buffered.FlushError`) flushes the writer under it only when that is
+an `http.Flusher`. A host middleware that wraps the `ResponseWriter` and offers only `Unwrap` (as
+the lab's `timedWriter` did, which is what `http.ResponseController` asks for) makes an SSE stream
+served by a structpages `ServeHTTP` route buffer forever: the client never sees the headers. The
+hybrid works around it by giving `timedWriter` a `Flush`. Proposal: `buffered.FlushError` calls
+`http.NewResponseController(w.ResponseWriter).Flush()`, which handles both. Repro: a `ServeHTTP`
+page that writes and calls `http.NewResponseController(w).Flush()`, mounted behind a middleware
+whose writer embeds `http.ResponseWriter` and adds only `Unwrap`; the client blocks waiting for the
+response headers.

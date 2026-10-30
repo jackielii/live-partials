@@ -11,6 +11,7 @@ themselves, then the library support that made most of them unnecessary. Each st
 | `extracted-v1` | 2. extracted: `live.On`, a dispatcher, own keyed ids, `POST /live` | an attribute, an id filter, a Props branch |
 | `structpages-keys` | 3. library: structpages keys, a page middleware for batching | the same, with stock structpages filters and no endpoint |
 | `datastar` | comparison: the same cases on Datastar 1.0.4, server-pushed HTML and signals | an id, plus a branch in the page's stream push for every component a topic touches |
+| `hybrid` | 5. stage 3 plus two push kinds on the same stream: value frames and fragment frames | a value: one attribute; a fragment: stage 3's attribute and Props branch, plus one registration per component |
 
 ## The problem
 
@@ -74,7 +75,7 @@ Requests dropped to one per frame (case 5: 50 → 2), routes from 14 to 10. The 
 case-specific (docs/findings.md). Two parts were workarounds for missing library support: the keyed
 ids, and an endpoint that re-ran authentication per item.
 
-## Stage 3: library support (`structpages-keys`, `main`)
+## Stage 3: library support (`structpages-keys`)
 
 **structpages v0.11.0 ships keyed ids**: `Key(ctx, v, key)` / `KeyTarget` (the `key` / `keytarget`
 filters) and `KeyOf(t RenderTarget)`. The stock htmx selectors match a keyed `HX-Target` to its
@@ -114,10 +115,35 @@ ones case 8 wanted (`data-query-string`, `data-replace-url`) are Pro, whose lice
 and open-source repositories.
 
 Headline (docs/findings.md, "Datastar vs htmx + live.js"): Datastar makes no request per change,
-so latency and server CPU on fan-out are about an order of magnitude lower (50 viewers: 11 against
-80 CPU ms, 1.4 against 13 ms until the last tab is updated); stage 3 needs less code per component
+so latency and server CPU on fan-out are several times lower (50 viewers, re-measured in the hybrid
+stage with a corrected harness: 6 against 32 CPU ms, 1.6 against 8 ms until the last tab is
+updated; first recorded as 11 against 80 and 1.4 against 13); stage 3 needs less code per component
 (308 against 460 lines for the cases), gets dirty-editor protection and URL state generically, and has safer
 reconnect and authorisation defaults.
+
+## Stage 5: hybrid (`hybrid`, `main`)
+
+Datastar's good parts without its per-page stream route or server-side knowledge of a page's
+composition. `examples/hybrid` is stage 3 (case 1 unchanged, signal + pull) with two more frame kinds
+on the same `/events` stream; components still declare what they show, and the server never lists a
+page's components.
+
+- **Value frames** (case 2, presence): `hub.PublishValues(ctx, aud, "lab:presence",
+  map[string]string{"p1": "idle"})`. Any number of elements anywhere (`live.Value(topic, key,
+  current)`, or `live.ValueText` for text) take the value; CSS styles `data-value`. No request,
+  no render, no route: the sidebar's shell route and `data-live-url` are gone. A resync carries
+  every value topic's current values (`hub.Current`), so the dots converge after missed frames.
+- **Fragment frames** (cases 3 and 6): `hub.Fragment("lab:job", jobsPage.Card, render)` registers,
+  once, how a component renders for one key and viewer. For a keyed signal of that topic each
+  admitted subscriber's stream renders it as its own viewer and sends the HTML with the ids; the
+  dispatcher morphs it into the element with that id if the page has it, spares dirty editors, and
+  pulls whatever no fragment covered, so a failed render is just stage 3. The element keeps its
+  `live.On` and Props branch for that fallback and for resync.
+
+Measured on one tab: case 2 drops from 2 requests to none (52 bytes on the wire), cases 3 and 6 from
+one request to none. At 50 viewers a value frame costs the server no render and no query per viewer.
+See docs/findings.md, "Hybrid: value and fragment frames", for the numbers, the code per component,
+the rules and the security notes.
 
 ## Final per-component cost
 
@@ -159,6 +185,9 @@ loader) must return only what the caller may see.
 | `data-live-insert` | on a region: refetch it for ids that match no element (new rows) |
 | `data-live-stale` | the notice revealed when a change hits an element with unsaved input |
 | `data-live-refresh` | a button inside the element that discards the input and refetches |
+| `data-live-value="t"` | (hybrid) a value listener of topic t (`live.Value`, `live.ValueText`) |
+| `data-live-value-key="k"` | (hybrid) the key whose value it shows; absent means the key `""` |
+| `data-live-value-into` | (hybrid) where the value goes: `text`, or a `data-*`/`aria-*` attribute; default `data-value` |
 
 A *region* is an unkeyed live element containing keyed live elements of the same topic. It is
 refetched for an id-less frame, an escalation, an unknown id (with `data-live-insert`) or a resync,
@@ -174,6 +203,25 @@ data: {"ids":["s2","s5","s8"]}
 `data: {}` means the whole topic; `event: resync` means refetch every outermost live element. The
 stream URL carries `?since=<hub.Since()>` from the render, so the connect-time resync is skipped when
 nothing was published in between.
+
+From the `hybrid` tag the same stream carries two more shapes (no new event names):
+
+```text
+event: lab:presence
+data: {"values":{"p1":"idle"}}
+
+event: lab:job
+data: {"ids":["j1"],"fragments":[{"target":"jobs-card--j1","html":"<article id=\"jobs-card--j1\" …>…</article>"}]}
+
+event: resync
+data: {"values":{"lab:presence":{"p1":"idle","p2":"active",…}}}
+```
+
+A value frame sets every value listener of the topic and key, and its keys are a signal for any
+`data-live` element of the topic. A fragment frame is a signal plus the HTML the stream rendered for
+this viewer: each fragment is morphed into the element with its id (absent: ignored; dirty: its
+`data-live-stale` notice, as for a refetch; inside an element the signal refetches: dropped, outer
+wins), and the signal's other matches are refetched as usual. A resync carries the current values.
 
 **Request**: one per page URL per animation frame (usually one in all; a shell part's
 `data-live-url` adds its own):
@@ -219,6 +267,31 @@ any `live.Audience[*User]`, which gets every subscriber's viewer at once. A host
 (messages, notifications) writes its own SSE handler: replay its outbox after `Last-Event-ID` with
 `live.WriteEvent`, then `hub.Subscribe(viewer)` and select over its feed and `Subscription.Ready()`.
 
+With push (hybrid), serve the stream from a structpages route, so its context carries the page tree
+the fragments' ids come from, and register each pushed component and value topic once:
+
+```go
+type events struct{} // `route:"GET /events Events"`
+
+func (events) ServeHTTP(w http.ResponseWriter, r *http.Request, h *live.Hub[*User], u *User) error {
+	return h.ServeSSE(w, r, u)
+}
+
+hub.Fragment("orbit:job", jobsPage.Card, func(ctx context.Context, u *User, key string) (live.Component, error) {
+	j, err := jobs.ForViewer(ctx, u, key) // the same check the page's Props makes
+	if err != nil {
+		return nil, err // no fragment: the element pulls, through Props
+	}
+	return jobsPage{}.Card(j), nil
+})
+hub.Current("collab:presence", func(ctx context.Context, u *User) (map[string]string, error) {
+	return presence.VisibleTo(ctx, u)
+})
+
+hub.PublishValues(ctx, sameOrg, "collab:presence", map[string]string{userID: "idle"})
+hub.End(func(u *User) bool { return u.ID == revoked }) // permissions changed: reconnect and resync
+```
+
 `gsx.toml` registers the structpages filters (`url`, `id`, `target`, `key`, `keytarget`). In the page:
 
 ```gsx
@@ -234,14 +307,21 @@ start({ stream: "#stream" });
 ## Run each stage
 
 ```sh
-git checkout direct          # or extracted-v1, structpages-keys, datastar
+git checkout direct          # or extracted-v1, structpages-keys, datastar, hybrid
 npm install
 npm run dev                  # http://localhost:5173: the cases, a "simulate other users" panel, a meter
-npm run dev:datastar         # (datastar tag) http://localhost:5174: the Datastar app
-npm run e2e                  # Playwright, including measure.spec.ts; from datastar on, both apps
+npm run dev:datastar         # (from datastar) http://localhost:5174: the Datastar app
+npm run dev:hybrid           # (from hybrid) http://localhost:5175: the hybrid app (Go on 7779)
+npm run e2e                  # Playwright, including measure.spec.ts; from datastar on, every app
 ```
 
-From the `datastar` tag Playwright has two projects, `lab` (port 8899) and `datastar` (8898);
+On `main` all three apps run side by side, so the same case can be compared in three windows:
+`/people` (case 2: stage 3 pulls two GETs, Datastar pushes three patches, hybrid one value frame;
+"All fifty members change presence" exists only in hybrid), `/drafts` (case 3) and `/jobs` (case 6).
+Hybrid's `/series` is stage 3's case 1 unchanged.
+
+From the `datastar` tag Playwright has two projects, `lab` (port 8899) and `datastar` (8898), and
+from `hybrid` a third, `hybrid` (8897);
 `npx playwright test -c e2e --project=datastar` runs only the Datastar app. The Datastar meter
 counts the same things from the stream itself: frames are stream events, bytes include them, and
 server ms and queries arrive in a `lab-meter` event after each push. Each simulate panel has
@@ -256,7 +336,7 @@ adds store queries). [docs/findings.md](docs/findings.md) has the numbers for al
 
 ```sh
 go test ./...        # hub, middleware (per-target failure, aborts, triggers, query counting), lab,
-                     # Datastar streams, and case 7 (FANOUT_N=200 for more subscribers)
+                     # Datastar streams, hybrid frames, and case 7 (FANOUT_N=200 for more subscribers)
 npm run test:js      # dispatcher rules (node --test + jsdom)
 npm run e2e          # every case in both apps, two tabs, two viewers, caret, reconnect, costs, measurements
 go tool structpages-lint ./...

@@ -8,7 +8,9 @@ lab-local broadcaster, no library); the recurring parts extracted into `live/` a
 ids and a page middleware in place of the endpoint (`structpages-keys`). A fourth, `datastar`, is
 not a stage of that design but evidence for a comparison: the same cases written the idiomatic
 Datastar way (server-pushed HTML and signals on one stream per page), plus two cases that stress
-the differences (7 fan-out, 8 URL state). See "Datastar vs htmx + live.js" at the end.
+the differences (7 fan-out, 8 URL state). See "Datastar vs htmx + live.js". A fifth, `hybrid`,
+adds Datastar's push to stage 3 as two more frame kinds on the same stream; see "Hybrid: value and
+fragment frames" at the end.
 
 ## Measurements
 
@@ -337,6 +339,12 @@ one change to a series row, and read every tab to completion; stage 3's simulate
 | Datastar: push HTML | 0 | 27,300 | — | 100 | 100 | 11.0 | 1.0 / 1.4 ms |
 | Datastar, brotli stream | 0 | 27,300 | 15,750 | 100 | 100 | 13.4 | 0.8 / 1.2 ms |
 
+**Correction (hybrid stage):** the harness compressed every pulled response with brotli inside the
+measured window, which inflated stage 3's CPU and latency. Re-measured with each content compressed
+once: 32.4 against 6.4 CPU ms and p50 6.6 against 1.1 ms at N = 50; 63.3 against 17.0 and 9.6
+against 2.7 at N = 200 (`docs/measurements/fanout-hybrid.json`, "Hybrid" section). The numbers below
+are the original run.
+
 At N = 200: 397.7 against 45.9 CPU ms, p50 27.9 against 2.4 ms. CPU is the whole test process from
 the change until every tab is updated, so it includes the simulated tabs; stage 3's tabs do more
 of it (an HTTP request each), so the server-only gap is smaller than 7×, but every one of those 50
@@ -418,7 +426,7 @@ projects (`/sim/drop-streams` ends every stream and refuses new ones for a secon
 |---|---|---|
 | Requests per live change | **Datastar** | none, against one GET per page URL per frame |
 | Latency | **Datastar** | no round trip after the frame: 0.3 against 1.2 ms in-process, a full RTT on a network |
-| Server CPU on fan-out | **Datastar** | ~7× less process CPU at N = 50 and 200, no per-tab request through the middleware chain |
+| Server CPU on fan-out | **Datastar** | ~4–5× less process CPU at N = 50 (corrected harness; first measured as ~7×), no per-tab request through the middleware chain |
 | Renders / queries on fan-out | even | one render per subscriber in both; Datastar could share a viewer-independent render in-process, the pull model would need a response cache |
 | Bytes | Datastar, slightly | 20–30 % fewer per change; brotli evens them out at this size |
 | Code per component | **stage 3** | an attribute and a Props branch; Datastar names every affected component in a per-page push function, plus a stream route and resync per page (460 against 308 lines) |
@@ -438,3 +446,263 @@ through the normal handler) become per-page code. For EOS, where screens are man
 elements are many per screen, stage 3 stays the better default; Datastar's push model is worth
 copying for one hot, wide-audience element (a presence or progress feed) where the per-viewer
 request cost dominates.
+
+## Hybrid: value and fragment frames
+
+`examples/hybrid` (tag `hybrid`) is stage 3 with two more frame kinds on the same stream, taken from
+Datastar without its per-page stream route or the server knowing what a page shows. Components still
+declare what they show; the stream never enumerates a page's components. Case 1 stays signal + pull
+for contrast; case 2 uses value frames; cases 3 and 6 use fragment frames. The other cases are as in
+stage 3 and are not repeated in the hybrid app.
+
+### The two kinds
+
+**Value frames** carry small viewer-independent state: `{"values":{"p1":"idle"}}`. Listener elements
+declare themselves (`live.Value(topic, key, current)` writes `data-live-value`,
+`data-live-value-key` and `data-value`; `live.ValueText` makes the value the element's text), and
+`js/live.js` writes the value into every matching element on the page, however many there are
+and wherever they sit, layout included. CSS styles the attribute. Nothing is requested or rendered.
+The keys of a value frame are also a signal, so a `data-live` element of the same topic still
+refetches.
+
+Resync: the resync event carries every value topic's current values
+(`{"values":{"lab:presence":{…}}}`), read per viewer from a source registered once with
+`hub.Current`. Chosen over refetching because value listeners need no id, no route and no
+enclosing live element: the sidebar's dot sits in the layout, and refetching it is exactly the
+shell-route problem value frames remove (proposals §3). The cost is that a resync sends the whole
+topic (56 values, about 1 KB here) rather than only what the page shows; resync is rare
+(`?since=` skips it on connect when nothing was published), and a topic whose snapshot would be
+large should stay on signal + pull.
+
+**Fragment frames** are signals that carry HTML. A component is registered once, beside it:
+
+```go
+h.Fragment("lab:job", jobsPage.Card, func(ctx context.Context, _ viewer, key string) (live.Component, error) {
+	j, err := s.ForContext(ctx).Job(key)
+	if err != nil {
+		return nil, err
+	}
+	return jobsPage{}.Card(j), nil
+})
+```
+
+For a keyed signal of that topic, each admitted subscriber's stream calls the function with its own
+viewer, renders the component, checks that its root element carries `structpages.Key(ctx,
+jobsPage.Card, key)`, and sends `{"ids":["j1"],"fragments":[{"target":"jobs-card--j1","html":…}]}`.
+The write site does not change (`hub.Publish(ctx, aud, "lab:job", id)`). The dispatcher morphs
+each fragment into the element with its id when the page has it, ignores it silently when not,
+spares a dirty element exactly as for a refetch (stale notice, clean inner rows still refetched),
+drops a fragment inside an element the signal refetches anyway (outer wins), and refetches what no
+fragment covered. So the element keeps its `live.On` and its Props branch, and a fragment that
+cannot be rendered (not found, an error, past `Config.MaxFragment`, a root without the target id) is
+simply a stage 3 signal. Id-less frames and resyncs stay signals.
+
+The render context: the stream request's own context. Serving `/events` as a structpages route
+(`ServeHTTP(w, r, h *hub, v viewer, …)`) gives it the page tree, so the component's `key`, `url` and
+`id` filters work exactly as in a page render; the viewer is the subscriber's; dependencies are
+whatever the registration closes over (the store), with the request-scoped parts read from the
+stream's context (`s.ForContext(ctx)` here). No per-page stream route, no fake request.
+
+### Measurements, one tab
+
+Same method as the table above; hybrid "bytes" include the frame itself (value and fragment frames
+carry the content), so case 1's 703 is stage 3's 663 plus its 40-byte frame. Hybrid "server ms" for
+a pushed frame is the stream's time from the batch's write deadline to its flush (render, JSON,
+write); for Datastar it is render time only. Hybrid "swaps" counts morphs; value listeners set are
+listed separately. Medians of three runs, identical counts; raw data `docs/measurements/hybrid.json`
+(`npx playwright test -c e2e --project=hybrid measure`).
+
+| Case: action | Requests 3 \| DS \| H | Bytes 3 \| DS \| H | Swaps 3 \| DS \| H | Queries 3 \| DS \| H | Server ms 3 \| DS \| H | Swap ms 3 \| DS \| H |
+|---|---|---|---|---|---|---|
+| 1 one of ten series rows changes (H: pull) | 1 \| 0 \| 1 | 663 \| 547 \| 703 | 2 \| 2 \| 2 | 2 \| 2 \| 2 | 0.13 \| 0.03 \| 0.13 | 0.9 \| 0.8 \| 0.9 |
+| 2 one person, three places (H: values) | 2 \| 0 \| **0** | 1068 \| 837 \| **52** | 3 \| 3 \| 5 set | 3 \| 2 \| **0** | 0.22 \| 0.02 \| 0.01 | 1.1 \| 0.8 \| 0.2 |
+| 2 fifty people, four listeners each (H only) | — \| — \| 0 | — \| — \| 783 | — \| — \| 200 set | — \| — \| 0 | — \| — \| 0.04 | — \| — \| 0.3 |
+| 3 neighbour draft row edited (H: fragment) | 1 \| 0 \| **0** | 717 \| 94 \| 770 | 1 \| 1 \| 1 | 1 \| 1 \| 1 | 0.10 \| 0.01 \| 0.07 | 0.8 \| 0.5 \| 1.0 |
+| 6 job progress tick (H: fragment) | 1 \| 0 \| **0** | 304 \| 227 \| 344 | 1 \| 1 \| 1 | 1 \| 1 \| 1 | 0.10 \| 0.01 \| 0.04 | 0.7 \| 0.6 \| 0.8 |
+| 6 job status change (H: fragment) | 1 \| 0 \| **0** | 704 \| 534 \| 761 | 1 \| 1 \| 1 | 1 \| 1 \| 1 | 0.08 \| 0.03 \| 0.05 | 0.8 \| 0.8 \| 1.0 |
+| resync on connect (people page) | 0 \| 0 \| 0 | 0 \| 0 \| 0 | 0 \| 0 \| 0 | 0 \| 0 \| 0 | — | — |
+
+- **Case 2 is where value frames pay**: no request (stage 3 needed two, one of them `/shell`), 52
+  bytes instead of 1 KB, no render and no query per tab (the write site reads the value once). Fifty
+  people changing at once is one 783-byte frame setting 200 listeners in 0.3 ms; stage 3 would have
+  turned 50 ids into an id-less frame and refetched every presence element on the page.
+- **Fragment frames remove the request, not the bytes**: the HTML is the same as the pulled
+  partial, plus JSON quoting (HTML escaping in the JSON is turned off; with it on, case 3's frame
+  was 900 bytes). Datastar's case 3 is smaller because it sends signals, not the row.
+- Swap time is htmx's, as before: a fragment goes through `htmx.swap` with `<hx-partial>`, so the
+  page's swap events and processing are the same as for a pull.
+
+### Change → tab latency and fan-out (case 7)
+
+`examples/hybrid/fanout_test.go` opens N streams against the real handler, as the other stages'
+tests do. Variants: **values** (a presence change, every tab on the people page), **fragments,
+wide** (a job's status change, every tab admitted), **fragments, single** (the same change with an
+audience of one viewer while N streams are open, a job only its owner watches; the other N − 1
+streams are checked to receive nothing), and **pull** (the same hybrid app with push switched off,
+so the job card is a stage 3 signal + pull: the like-for-like baseline). For stage 3's case 2,
+`examples/lab/fanout_test.go: TestFanOutPresence` adds the presence change as stage 3 pulls it (two
+GETs per tab).
+
+**Harness correction.** The fan-out harness used to brotli-compress every tab's response inside the
+measured window, so stage 3's CPU (and to a lesser degree its latency) included about one
+compression per tab. `fanout.BrotliSize` now remembers its result per content, so identical bodies
+are compressed once. All stages were re-measured in one session with the corrected harness: medians
+of three runs of seven rounds each, `docs/measurements/fanout-hybrid.json`. The earlier "80 against 11
+CPU ms" at N = 50 (section "Server cost on fan-out") is **32 against 6** with the correction: the
+direction holds, the ratio was overstated.
+
+N = 1 (latency of one change to one tab, in-process):
+
+| | Requests | Bytes | Queries | Renders | Change → tab |
+|---|---|---|---|---|---|
+| stage 3, series row + summary (pull) | 1 | 703 | 2 | 2 | 1.59 ms |
+| stage 3, presence (pull, two GETs) | 2 | 1,110 | 3 | 3 | 1.91 ms |
+| hybrid, job card (pull) | 1 | 741 | 1 | 1 | 1.27 ms |
+| Datastar, series row + summary | 0 | 546 | 2 | 2 | 0.42 ms |
+| hybrid, presence (value frame) | 0 | 52 | 0 | 0 | 0.50 ms |
+| hybrid, job card (fragment frame) | 0 | 761 | 1 | 1 | 0.43 ms |
+
+N = 50 and N = 200 (all tabs; brotli compresses each response or frame on its own):
+
+| N = 50 | Requests | Bytes | Brotli | Queries | Renders | CPU ms | p50 / max ms |
+|---|---|---|---|---|---|---|---|
+| stage 3, series (pull) | 50 | 35,150 | 15,850 | 100 | 100 | 32.4 | 6.6 / 8.2 |
+| stage 3, presence (pull) | 100 | 55,500 | 25,800 | 150 | 150 | 47.5 | 7.3 / 7.8 |
+| Datastar, series (push HTML) | 0 | 27,300 | — | 100 | 100 | 6.4 | 1.1 / 1.6 |
+| hybrid, job card (pull) | 50 | 37,050 | 15,900 | 50 | 50 | 12.6 | 2.7 / 3.6 |
+| **hybrid, presence (values)** | 0 | 2,600 | 1,400 | **0** | **0** | 7.1 | 1.4 / 1.7 |
+| **hybrid, job card (fragments, wide)** | 0 | 38,050 | 14,700 | 50 | 50 | 10.2 | 2.0 / 3.5 |
+| **hybrid, job card (fragments, single)** | 0 | 761 | 294 | 1 | 1 | 0.3 | 0.3 / 0.3 |
+
+| N = 200 | Requests | Bytes | Queries | Renders | CPU ms | p50 / max ms |
+|---|---|---|---|---|---|---|
+| stage 3, series (pull) | 200 | 140,600 | 400 | 400 | 63.3 | 9.6 / 12.2 |
+| stage 3, presence (pull) | 400 | 222,000 | 600 | 600 | 103.4 | 12.2 / 17.3 |
+| Datastar, series (push HTML) | 0 | 109,200 | 400 | 400 | 17.0 | 2.7 / 4.8 |
+| hybrid, job card (pull) | 200 | 148,200 | 200 | 200 | 29.2 | 6.5 / 12.0 |
+| **hybrid, presence (values)** | 0 | 10,400 | **0** | **0** | 9.0 | 2.5 / 2.9 |
+| **hybrid, job card (fragments, wide)** | 0 | 152,200 | 200 | 200 | 10.9 | 2.6 / 4.6 |
+| **hybrid, job card (fragments, single)** | 0 | 761 | 1 | 1 | 0.2 | 0.4 / 0.4 |
+
+Reading them:
+
+- **Values are the cheapest kind by far on the wire and in the store**: 52 bytes and no query or
+  render per viewer, against 1,110 bytes, two requests and three renders per viewer for stage 3's
+  presence. What remains (7–9 ms CPU for 50–200 tabs) is the streams' wake-up and write and the
+  simulated tabs' reading, which every push model pays.
+- **Fragments, wide, versus pull of the same card** (the like-for-like pair): the same renders and
+  queries (one per viewer: both render as that viewer), the same bytes, but no request through the
+  router, middleware and authentication. CPU 10 against 13 ms at N = 50 and 11 against 29 ms at N =
+  200; p50 2.0 against 2.7 and 2.6 against 6.5 ms. The gap grows with N because each pull is a full
+  HTTP request competing with the others. It matches Datastar's push (renders are per viewer in both).
+- **The audience decides the render count.** A fragment renders only on admitted subscribers'
+  streams: an owner-only job with 50 or 200 streams open costs one render and 761 bytes, and the
+  other streams receive nothing (checked). The flip side: the stream does not know what a tab shows,
+  so an admitted viewer on another page still gets the fragment rendered and sent, and the browser
+  drops it. A wide audience on a topic few pages show wastes renders that pull would not make.
+
+### Exact per-component code
+
+Value listener (case 2): one attribute, wherever the element is, layout included; no id, no route,
+no Props branch.
+
+```gsx
+<span class="… bg-stone-300 data-[value=active]:bg-green-500 data-[value=idle]:bg-amber-400"
+	{ live.Value("lab:presence", pr.ID, pr.Presence)... }></span>
+<span { live.ValueText("lab:presence", pr.ID)... }>{ pr.Presence }</span>
+```
+
+```go
+h.Current("lab:presence", func(ctx context.Context, _ viewer) (map[string]string, error) { // once, for resync
+	return s.ForContext(ctx).AllPresence(), nil
+})
+h.PublishValues(ctx, everyone, "lab:presence", s.Presence(ids)) // at the write site
+```
+
+Stage 3 needed, for the same three places, three keyed components with ids and `live.On`, two Props
+branches, a shell route (`shellPage`) and `data-live-url` (case 2: 61 lines in stage 3, about 40 in
+hybrid without the crowd).
+
+Fragment (cases 3 and 6): stage 3's element and Props branch unchanged, plus one registration that
+calls the same loader the Props branch calls. Case 3 renders per viewer, so the loader takes the
+viewer:
+
+```go
+func viewDraft(s *store, v viewer, id string) (draftView, error) { … } // "last saved by you" for its saver
+
+func (p draftsPage) Props(s *store, t structpages.RenderTarget, v viewer) (draftView, error) {
+	if t.Is(p.Row) {
+		return viewDraft(s, v, structpages.KeyOf(t)) // the pull path: fallback and resync
+	}
+	return draftView{}, nil
+}
+
+h.Fragment("lab:draft", draftsPage.Row, func(ctx context.Context, v viewer, key string) (live.Component, error) {
+	d, err := viewDraft(s.ForContext(ctx), v, key) // the push path
+	if err != nil {
+		return nil, err
+	}
+	return draftsPage{}.Row(d), nil
+})
+```
+
+Case 6 is 40 lines in stage 3 and 53 in hybrid (the two registrations); case 3 is 55 and 78, of which
+13 are the per-viewer rendering stage 3 did not have. Infrastructure: `live/fragment.go` 128 lines,
+about 60 more in `hub.go`/`sse.go`/`on.go`, and about 60 more in `js/live.js`.
+
+### What it costs: rules and security
+
+- **A value frame's content goes to everyone the audience admits, unchanged.** The audience check at
+  publish is the only guard, so a value must be something every admitted viewer may see, and it must
+  not depend on the viewer. Presence in one organisation qualifies; anything per viewer or
+  permission-filtered does not: use a fragment or a signal. The resync snapshot is read per viewer
+  (`Current` gets the viewer) and must apply the same visibility rule.
+- **A value is data, not markup.** `js/live.js` writes it as text or into a `data-*`/`aria-*`
+  attribute only (`data-live-value-into` naming anything else is refused), so a value can never become
+  a URL, a handler or HTML.
+- **A fragment is rendered on the stream as the viewer the stream was opened for.** The stream
+  authenticates once, at connect; a pull re-runs authentication and Props on every refetch. So the
+  registration must make the same permission check the Props branch makes (sharing the loader, as
+  above, is the way to keep them equal), and **a permission change must end the viewer's streams**:
+  `hub.End(func(v) bool { … })` closes them, the tab reconnects through the host's authentication,
+  and `End` moves the hub position so that reconnect always resyncs. A revoked session that is not
+  ended keeps receiving fragments rendered with its old rights until it is.
+- **The audience bounds both leak and cost.** A fragment is rendered only for admitted subscribers
+  (the two-context e2e checks that one viewer's rendering never reaches another's tab), and the
+  render count is the audience size, not the number of tabs showing the element.
+- Fragments ride on the signal, so a fragment that fails is a pull; the page decides as in stage 3,
+  including the 404 that removes a deleted element.
+
+### When to use which
+
+| Kind | Use when | Avoid when |
+|---|---|---|
+| **signal + pull** (stage 3) | the default; lists, aggregates, inserts, anything whose rendering depends on the URL (filters, case 8) or on page context; wide topics few pages show | the change is very frequent and watched by many viewers |
+| **value frame** | a small scalar every admitted viewer may see, shown in many places or in the layout: presence, unread counts, a status badge, a progress percentage | the value differs per viewer, is permission-filtered, or is more than a value (then the element needs markup) |
+| **fragment frame** | one keyed component, watched by its audience while it changes often: a job card, a draft row someone else is editing, a live progress panel | the audience is wide but few of them have the component on screen; the component depends on the URL or page state the stream does not have; one frame names many keys of a list (escalate and pull instead) |
+
+For EOS: keep signal + pull as the default, move presence and the rail's counts to value frames
+(which also retires the shell-route question for them), and opt hot keyed components into fragments
+one at a time with narrow audiences.
+
+### What was awkward
+
+- **The stream must be a structpages route.** Fragment ids come from `structpages.Key` with the
+  stream's context; from a plain mux route there is no page tree, every fragment fails, and the page
+  silently falls back to pull (logged as a warning). Mounting it as a page also brought the next
+  point.
+- **structpages buffers a `ServeHTTP` page's response and flushes only an `http.Flusher`.** The lab's
+  timing middleware wraps the writer with only `Unwrap`, so the stream never reached the client until
+  `timedWriter` got a `Flush` method (proposals §7).
+- **Push and pull paths are two call sites.** The Props branch and the registration must load the
+  same data with the same checks; a shared loader keeps them honest, but nothing enforces it.
+- **The publisher of a value knows the value.** Presence's write site reads the new value
+  (`s.Presence(ids)`) to publish it; the lab's shared simulation publishes ids, so the hybrid's
+  publish function translates `lab:presence` ids into values.
+- **Wasted renders for viewers on other pages** (above): the price of the server not knowing a page's
+  composition. Not mitigated; narrow audiences are the lever.
+- **Own-write echo now renders instead of requesting.** Saving your own draft row still sends your
+  own tab a fragment of the row the save response just swapped in (one render, no request).
+- **Values merge without a cap.** Values of one topic within the coalescing gap merge, the later
+  value of a key winning; they never escalate to an id-less frame, so a topic with very many keys
+  changing at once sends them all (50 people: 783 bytes).
