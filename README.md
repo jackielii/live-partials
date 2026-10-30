@@ -12,6 +12,7 @@ themselves, then the library support that made most of them unnecessary. Each st
 | `structpages-keys` | 3. library: structpages keys, a page middleware for batching | the same, with stock structpages filters and no endpoint |
 | `datastar` | comparison: the same cases on Datastar 1.0.4, server-pushed HTML and signals | an id, plus a branch in the page's stream push for every component a topic touches |
 | `hybrid` | 5. stage 3 plus two push kinds on the same stream: value frames and fragment frames | a value: one attribute; a fragment: stage 3's attribute and Props branch, plus one registration per component |
+| `page-fragments` | 6. hybrid with each pushed component declared by its page and rendered through the page's own handler | a fragment: stage 3's attribute and Props branch, plus one line in the page's `Live()` |
 
 ## The problem
 
@@ -121,7 +122,7 @@ updated; first recorded as 11 against 80 and 1.4 against 13); stage 3 needs less
 (308 against 460 lines for the cases), gets dirty-editor protection and URL state generically, and has safer
 reconnect and authorisation defaults.
 
-## Stage 5: hybrid (`hybrid`, `main`)
+## Stage 5: hybrid (`hybrid`)
 
 Datastar's good parts without its per-page stream route or server-side knowledge of a page's
 composition. `examples/hybrid` is stage 3 (case 1 unchanged, signal + pull) with two more frame kinds
@@ -144,6 +145,45 @@ Measured on one tab: case 2 drops from 2 requests to none (52 bytes on the wire)
 one request to none. At 50 viewers a value frame costs the server no render and no query per viewer.
 See docs/findings.md, "Hybrid: value and fragment frames", for the numbers, the code per component,
 the rules and the security notes.
+
+## Stage 6: page-declared fragments (`page-fragments`, `main`)
+
+The hybrid stage's fragments had a second load path: a render function registered beside the page,
+which had to repeat the Props branch's loading and checks and skipped the page's middleware.
+`examples/pagefrag` removes it. A page declares what it pushes, and the stream renders it **through
+the page's own handler**, as the subscriber:
+
+```go
+func (jobsPage) Live() []live.Fragment {
+	return []live.Fragment{
+		{Topic: "lab:job", Component: jobsPage.Card},
+		{Topic: "lab:job-progress", Component: jobsPage.Progress},
+	}
+}
+```
+
+- `hub.Pages` is a structpages middleware. At mount it sees every page node once, keeps the
+  `next` handler of each page that has `Live()`, and changes nothing else.
+- For a keyed signal of a declared topic, each admitted subscriber's stream builds a `GET` of the
+  page's URL. The page's path parameters come from `Fragment.Params(key)` when its route has any.
+  The request is a clone of the stream request (its context, cookies and auth headers) with
+  `HX-Target: #<keyed id>`. The stream calls the page's `next` with it and captures the body as the
+  batch middleware does. So Props is the only loader, the page's `Middlewares` (and every
+  structpages middleware registered after `hub.Pages`) run on every push, and `live.Load` batches
+  the frame's keys into one query.
+- A 200 whose root is the target is pushed. A 404 is pushed as a delete. Anything else (a 403
+  from a revoked viewer, a redirect, a 401) pushes nothing: the frame is still a signal, the tab
+  pulls, and the page answers the pull the same way.
+
+Fragment frames are for **narrow audiences** (a job's owner, a user's own tabs). Every admitted
+subscriber gets a render whatever page its tab shows. Wide, viewer-dependent updates stay
+signal + pull, and viewer-independent state uses value frames. A per-tab interest list, where the
+tab told the stream what it shows, was considered and dropped (docs/findings.md, "Page-declared
+fragments").
+
+Measured against the hybrid stage's direct render function in the same app: the bytes, queries and
+renders are identical. One render through the page costs about 5 µs, 4 KB and 85 allocations more, which is within the fan-out harness's CPU noise at 50 and 200 tabs and up to 1 ms of median latency for the wide job card. See
+docs/findings.md, "Page-declared fragments".
 
 ## Final per-component cost
 
@@ -217,6 +257,10 @@ event: resync
 data: {"values":{"lab:presence":{"p1":"idle","p2":"active",…}}}
 ```
 
+From `page-fragments` a fragment can be a removal, pushed when the page answers 404 for it:
+`{"target":"jobs-card--j9","delete":true}`. The dispatcher deletes the element as a pulled 404
+would.
+
 A value frame sets every value listener of the topic and key, and its keys are a signal for any
 `data-live` element of the topic. A fragment frame is a signal plus the HTML the stream rendered for
 this viewer: each fragment is morphed into the element with its id (absent: ignored; dirty: its
@@ -267,8 +311,34 @@ any `live.Audience[*User]`, which gets every subscriber's viewer at once. A host
 (messages, notifications) writes its own SSE handler: replay its outbox after `Last-Event-ID` with
 `live.WriteEvent`, then `hub.Subscribe(viewer)` and select over its feed and `Subscription.Ready()`.
 
-With push (hybrid), serve the stream from a structpages route, so its context carries the page tree
-the fragments' ids come from, and register each pushed component and value topic once:
+With push, serve the stream from a structpages route of the same `Mount`, so its context carries the
+page tree. Register `hub.Pages` first among the structpages middlewares. A page declares its pushed
+components, and a value topic registers its resync source once:
+
+```go
+structpages.Mount(mux, pages{}, "/", "App",
+	structpages.WithTargetSelector(structpages.HTMXv4RenderTarget),
+	structpages.WithMiddlewares(hub.Pages, auth, live.Middleware), // everything after hub.Pages runs on every push
+	structpages.WithArgs(hub), …)
+
+func (jobsPage) Live() []live.Fragment {
+	return []live.Fragment{{Topic: "orbit:job", Component: jobsPage.Card}}
+}
+
+// a page whose route has parameters maps the key to them
+func (jobPage) Live() []live.Fragment { // `route:"/jobs/{jobId} Job"`
+	return []live.Fragment{{Topic: "orbit:job", Component: jobPage.Detail,
+		Params: func(key string) map[string]any { return map[string]any{"jobId": key} }}}
+}
+```
+
+Middleware and request args outside `hub.Pages` (an `http.Handler` around the mux, a structpages
+middleware before it) run once, when the stream connects. Their context values are inherited by
+every push. What must be re-checked on every push belongs in the page: its `Middlewares`, its request
+args, its Props.
+
+The hybrid stage's direct registration, a render function beside the page, still works. It is kept
+so the two can be measured against each other:
 
 ```go
 type events struct{} // `route:"GET /events Events"`
@@ -277,7 +347,7 @@ func (events) ServeHTTP(w http.ResponseWriter, r *http.Request, h *live.Hub[*Use
 	return h.ServeSSE(w, r, u)
 }
 
-hub.Fragment("orbit:job", jobsPage.Card, func(ctx context.Context, u *User, key string) (live.Component, error) {
+hub.Fragment("orbit:job", jobsPage.Card, func(ctx context.Context, u *User, key string) (live.Component, error) { // hybrid stage
 	j, err := jobs.ForViewer(ctx, u, key) // the same check the page's Props makes
 	if err != nil {
 		return nil, err // no fragment: the element pulls, through Props
@@ -312,16 +382,20 @@ npm install
 npm run dev                  # http://localhost:5173: the cases, a "simulate other users" panel, a meter
 npm run dev:datastar         # (from datastar) http://localhost:5174: the Datastar app
 npm run dev:hybrid           # (from hybrid) http://localhost:5175: the hybrid app (Go on 7779)
+npm run dev:pagefrag         # (from page-fragments) http://localhost:5176: page-declared fragments (Go on 7780)
 npm run e2e                  # Playwright, including measure.spec.ts; from datastar on, every app
 ```
 
-On `main` all three apps run side by side, so the same case can be compared in three windows:
+On `main` all four apps run side by side, so the same case can be compared in four windows:
 `/people` (case 2: stage 3 pulls two GETs, Datastar pushes three patches, hybrid one value frame;
 "All fifty members change presence" exists only in hybrid), `/drafts` (case 3) and `/jobs` (case 6).
-Hybrid's `/series` is stage 3's case 1 unchanged.
+Hybrid's `/series` is stage 3's case 1 unchanged. The page-fragments app (5176) is the hybrid app
+with cases 3 and 6 pushed through their pages. Its `/jobs` has "Revoke my access to jobs", which
+makes the jobs page answer 403. From then on the tab's frames carry no HTML, and its pulls are refused
+too. "Reset" restores access.
 
 From the `datastar` tag Playwright has two projects, `lab` (port 8899) and `datastar` (8898), and
-from `hybrid` a third, `hybrid` (8897);
+from `hybrid` a third, `hybrid` (8897), and from `page-fragments` a fourth, `pagefrag` (8896);
 `npx playwright test -c e2e --project=datastar` runs only the Datastar app. The Datastar meter
 counts the same things from the stream itself: frames are stream events, bytes include them, and
 server ms and queries arrive in a `lab-meter` event after each push. Each simulate panel has
@@ -336,7 +410,9 @@ adds store queries). [docs/findings.md](docs/findings.md) has the numbers for al
 
 ```sh
 go test ./...        # hub, middleware (per-target failure, aborts, triggers, query counting), lab,
-                     # Datastar streams, hybrid frames, and case 7 (FANOUT_N=200 for more subscribers)
+                     # Datastar streams, hybrid frames, page fragments (mount discovery, render through
+                     # the page with its access check, path params), and case 7 (FANOUT_N=200 for more)
+go test -bench . ./examples/pagefrag   # one fragment through the page against the direct render func
 npm run test:js      # dispatcher rules (node --test + jsdom)
 npm run e2e          # every case in both apps, two tabs, two viewers, caret, reconnect, costs, measurements
 go tool structpages-lint ./...

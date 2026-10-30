@@ -707,3 +707,233 @@ one at a time with narrow audiences.
 - **Values merge without a cap.** Values of one topic within the coalescing gap merge, the later
   value of a key winning; they never escalate to an id-less frame, so a topic with very many keys
   changing at once sends them all (50 people: 783 bytes).
+
+## Page-declared fragments
+
+`examples/pagefrag` (tag `page-fragments`) is the hybrid app with one change. A pushed component is
+declared by its page and rendered **through the page's own handler**, as the subscriber, instead of
+by a function registered beside the page. Values, signals and the wire format are unchanged,
+except that a fragment can now be a removal (`{"target":…,"delete":true}`).
+
+### How it works
+
+- **Declaration on the page.** A page struct with `Live() []live.Fragment` names its pushed
+  components and their topics. `hub.Pages` is a structpages middleware
+  (`WithMiddlewares(hub.Pages, …, live.Middleware)`). Structpages calls it once per page node at
+  mount, and it keeps topic → (page node, component, the page's `next`). It returns `next`
+  unchanged, so it costs nothing per request.
+- **Render through the page.** For a keyed signal of a declared topic, each admitted subscriber's
+  stream renders every id. It clones the stream request, keeping its context (page tree, whatever
+  outer middleware put there), cookies, auth headers, host and remote address. It turns the clone
+  into an htmx partial `GET` of the declaring page's URL with `HX-Target: #<keyed id>`, calls the
+  page's `next` and captures the body as the batch middleware does. A page whose route has
+  parameters maps the key to them (`Params: func(key) map[string]any{"jobId": key}`). The URL is
+  built with `structpages.URLFor`, and the path values are set on the request, so Props reads
+  `r.PathValue` as usual. The frame's targets are put in the context as for a batch, so
+  `live.Load` loads every key of the frame in one query.
+- **Batch rules.** A 200 whose root element is the target is pushed. A 404 is pushed as a delete.
+  Anything else (403, 401, a redirect, `HX-Location`/`HX-Refresh`, a 500, past `MaxFragment`)
+  pushes nothing. The frame still names the id, so the tab pulls, and the page answers the pull
+  the same way: the host's usual handling of a 401 or redirect applies.
+
+**Per-tab interest, considered and dropped.** A design where live.js tells the stream, on load
+and after each boosted navigation, the tab's URL and its fragment-capable element ids was planned
+so that only tabs showing an element would get a render. The owner dropped it before it was
+built. It needs client→server traffic on every navigation and per-stream server state. It brings
+races between a navigation and a frame in flight. In a multi-replica deployment, the interest must
+reach the replica holding the stream. The rule instead: **fragment frames are for narrow audiences**
+(a job's owner, a user's own tabs). Wide, viewer-dependent updates stay signal + pull.
+Viewer-independent state uses value frames. Wasted renders for an admitted viewer on another page
+are accepted.
+
+### Measurements
+
+All in one session, the same machine as above. The hybrid app is re-measured beside the new one.
+The page-fragments app also runs with `options.direct`, which registers the hybrid stage's render
+functions instead of `hub.Pages` (`examples/pagefrag/direct.go`), so the two render paths are
+compared in one binary on the same data. Raw data: `docs/measurements/pagefrag.json`,
+`fanout-pagefrag.json`, `bench-pagefrag.txt`.
+
+**One tab** (Playwright meter, medians of three runs; requests, bytes, queries and swaps were
+identical in every run):
+
+| Case: action | Requests H \| P | Bytes H \| P | Queries H \| P | Swaps H \| P | Server ms H \| P | Swap ms H \| P |
+|---|---|---|---|---|---|---|
+| 3 neighbour draft row edited | 0 \| 0 | 770 \| 770 | 1 \| 1 | 1 \| 1 | 0.070 \| 0.094 | 0.9 \| 0.8 |
+| 6 job progress tick | 0 \| 0 | 344 \| 344 | 1 \| 1 | 1 \| 1 | 0.047 \| 0.068 | 0.8 \| 0.8 |
+| 6 job status change | 0 \| 0 | 761 \| 761 | 1 \| 1 | 1 \| 1 | 0.055 \| 0.079 | 0.8 \| 1.0 |
+
+H is the hybrid app, P is page fragments. Server ms is the stream's time from the batch's write
+deadline to its flush. Rendering through the page adds about 0.02 ms per frame. The fragment is
+byte for byte the same (`TestPageAndDirectRenderTheSame`).
+
+**One render, in isolation** (`go test -bench . ./examples/pagefrag`, `Hub.Render` for one
+subscriber and one id, median of eight):
+
+| | ns/op | B/op | allocs/op |
+|---|---|---|---|
+| job card, direct render func | 8,000 | 9,720 | 77 |
+| job card, through the page | 13,300 | 13,840 | 162 |
+| draft row, direct render func | 10,200 | 9,490 | 70 |
+| draft row, through the page | 15,500 | 13,600 | 153 |
+
+About **5 µs, 4 KB and 85 allocations more per render**. These pay for the request clone, URL
+building, target selection, the page's middleware chain (the jobs page's access check),
+structpages' DI and buffered writer, and the recorder. Over 200 subscribers that is about 1 ms of
+CPU per change.
+
+**Fan-out** (`TestFanOut`, medians of three runs of seven rounds). "page" renders through the page,
+"direct" is the hybrid's render function in the same app, and "pull" is the same app with push off.
+*Wide* admits every tab. *Single* is a job only its owner watches, with all N streams open, and the
+other N − 1 receive nothing (checked).
+
+| N = 1 | Bytes | Queries | Renders | CPU ms | Change → tab |
+|---|---|---|---|---|---|
+| job card, pull | 741 | 1 | 1 | 1.21 | 0.74 ms |
+| job card, direct | 761 | 1 | 1 | 0.62 | 0.32 ms |
+| job card, page | 761 | 1 | 1 | 0.78 | 0.58 ms |
+| draft row, direct | 770 | 1 | 1 | 0.66 | 0.43 ms |
+| draft row, page | 770 | 1 | 1 | 0.59 | 0.35 ms |
+
+| N = 50 | Requests | Bytes | Queries | Renders | CPU ms | p50 / max ms |
+|---|---|---|---|---|---|---|
+| job card, pull | 50 | 37,050 | 50 | 50 | 18.6 | 3.20 / 4.90 |
+| job card, wide, direct | 0 | 38,050 | 50 | 50 | 4.4 | 1.01 / 1.48 |
+| job card, wide, page | 0 | 38,050 | 50 | 50 | 5.2 | 2.05 / 2.69 |
+| draft row, wide, direct | 0 | 38,500 | 50 | 50 | 3.6 | 1.50 / 1.98 |
+| draft row, wide, page | 0 | 38,500 | 50 | 50 | 4.2 | 1.21 / 1.53 |
+| job card, owner only, direct | 0 | 761 | 1 | 1 | 0.29 | 0.22 / 0.22 |
+| job card, owner only, page | 0 | 761 | 1 | 1 | 0.27 | 0.22 / 0.22 |
+
+| N = 200 | Requests | Bytes | Queries | Renders | CPU ms | p50 / max ms |
+|---|---|---|---|---|---|---|
+| job card, pull | 200 | 148,200 | 200 | 200 | 34.9 | 4.72 / 10.14 |
+| job card, wide, direct | 0 | 152,200 | 200 | 200 | 17.8 | 1.65 / 2.34 |
+| job card, wide, page | 0 | 152,200 | 200 | 200 | 13.0 | 2.85 / 3.15 |
+| draft row, wide, direct | 0 | 154,000 | 200 | 200 | 16.4 | 1.61 / 2.37 |
+| draft row, wide, page | 0 | 154,000 | 200 | 200 | 16.6 | 2.03 / 2.94 |
+| job card, owner only, direct | 0 | 761 | 1 | 1 | 0.24 | 0.18 / 0.18 |
+| job card, owner only, page | 0 | 761 | 1 | 1 | 0.33 | 0.25 / 0.25 |
+
+How to read them:
+
+- **Same wire, same store, same renders.** Bytes, queries and render counts are identical between
+  page and direct at every N. The page path changes only the server's per-render cost.
+- **CPU is within the harness's noise.** The measured differences go both ways: page is cheaper
+  at N = 200 for jobs and dearer at N = 50. The 5 µs per render from the benchmark (1 ms at
+  N = 200) is below the run-to-run spread of the fan-out CPU. The hybrid app re-measured in the same
+  session shows the spread: its wide job card was 6.9 ms at N = 50 and 11.5 ms at N = 200, against
+  10.2 and 10.9 recorded earlier.
+- **Latency: up to about 1 ms more at the median for the wide job card** (2.05 against 1.01 ms at
+  N = 50, 2.85 against 1.65 at N = 200). The draft row shows no consistent difference. Each stream
+  renders in its own goroutine, so the extra work shows as latency only when CPU is contended.
+- **Narrow audiences cost the same either way** (one render, 0.2–0.3 ms to the owner's tab), and are
+  what this stage recommends fragments for. Against pull of the same card, a push still saves the
+  request: 3.6 times less CPU at N = 50 and 2.7 times at N = 200.
+
+### Exact per-component code, before and after
+
+Case 6, hybrid (beside the page, repeating Props' loading; it would also have to repeat any access
+check the page makes):
+
+```go
+func registerJobs(h *hub, s *store) {
+	render := func(c func(job) live.Component) live.FragmentFunc[viewer] {
+		return func(ctx context.Context, _ viewer, key string) (live.Component, error) {
+			j, err := s.ForContext(ctx).Job(key)
+			if err != nil {
+				return nil, err
+			}
+			return c(j), nil
+		}
+	}
+	h.Fragment("lab:job", jobsPage.Card, render(func(j job) live.Component { return jobsPage{}.Card(j) }))
+	h.Fragment("lab:job-progress", jobsPage.Progress, render(func(j job) live.Component { return jobsPage{}.Progress(j) }))
+}
+```
+
+Case 6, page fragments (on the page; Props, unchanged from stage 3, is the only loader, and the
+page's middleware runs on every push):
+
+```go
+func (jobsPage) Live() []live.Fragment {
+	return []live.Fragment{
+		{Topic: "lab:job", Component: jobsPage.Card},
+		{Topic: "lab:job-progress", Component: jobsPage.Progress},
+	}
+}
+
+func (jobsPage) Middlewares(a *access) []structpages.MiddlewareFunc { // new in this stage: revocation
+	return []structpages.MiddlewareFunc{a.require}
+}
+```
+
+Case 3, hybrid:
+
+```go
+func registerDrafts(h *hub, s *store) {
+	h.Fragment("lab:draft", draftsPage.Row, func(ctx context.Context, v viewer, key string) (live.Component, error) {
+		d, err := viewDraft(s.ForContext(ctx), v, key)
+		if err != nil {
+			return nil, err
+		}
+		return draftsPage{}.Row(d), nil
+	})
+}
+```
+
+Case 3, page fragments:
+
+```go
+func (draftsPage) Live() []live.Fragment {
+	return []live.Fragment{{Topic: "lab:draft", Component: draftsPage.Row}}
+}
+```
+
+Wiring: `registerDrafts(…)` and `registerJobs(…)` calls are replaced by `a.hub.Pages` at the head
+of `WithMiddlewares`. Infrastructure: `live/page.go`, 160 lines; `Render` takes the stream
+request instead of its context; a `delete` fragment in `js/live.js`, 6 lines.
+
+### What got simpler
+
+- **One loader.** The push and the pull run the same Props, with the same DI. The request-scoped
+  store comes from `WithRequestArgs` as for any request, so the `s.ForContext(ctx)` workaround
+  and the closure over the store are gone. Nothing can drift between the two paths.
+- **The page's checks apply to pushes.** The jobs page's access middleware runs on every push.
+  Revoking a viewer's access stops their very next fragment (Go:
+  `TestRevokedViewerGetsNoFragment`, `TestRenderRechecksAccessEveryFrame`; e2e: the revocation
+  test). Their tab gets the bare signal, pulls, and is refused by the same middleware. In the
+  hybrid stage this needed `hub.End` or a check copied into the render function. `direct.go` shows
+  that copy, and forgetting it leaks.
+- **Deletion is pushed.** A key the page answers 404 for removes the element without a
+  round trip. The hybrid stage relied on the fallback pull to learn it.
+- **`live.Load` batching works in a push.** A frame naming three rows makes one store query, as a
+  batch pull does.
+- The declaration sits on the page next to the components it names, and mount finds it. There is
+  no registration list to keep in step with the pages.
+
+### Remaining costs and what was awkward
+
+- **About 5 µs and 85 allocations per render** over a direct function (above). This is negligible
+  per change. It matters only for wide audiences, which this stage steers to pull anyway.
+- **Middleware outside `hub.Pages` runs once, at stream connect.** An `http.Handler` around the
+  mux and any structpages middleware listed before `hub.Pages` run once when the stream opens. The
+  push inherits their context values but does not re-run them. So `hub.Pages` must come first in
+  `WithMiddlewares`, and a host whose authentication is an outer `http.Handler` gets per-push
+  re-checks only from what the page itself does (its `Middlewares`, request args, Props). The lab
+  reads the viewer from a cookie with a request arg, which runs on every push.
+- **The page sees the stream request's headers.** It does not see a navigation's: a page that
+  varies on `HX-Current-URL`, `Referer` or query-string state renders without them. Case 8's URL
+  state stays signal + pull.
+- **The `url` filter's auto-filled parameters are missing.** structpages' `extractURLParams` runs
+  before the global middlewares, so `jobPage{} |> url` on `/jobs/{jobId}` errors inside a pushed
+  render, while `r.PathValue` works. Pass the parameters explicitly. Proposal: library-proposals
+  §8.
+- **Response headers are dropped.** An `HX-Trigger` the page sets while rendering a pushed
+  fragment does not reach the tab, while a pull merges it. No lab case sets one. A host that needs
+  one should send it as a value frame or keep that component on pull.
+- **Every admitted subscriber renders, whatever its tab shows.** This is unchanged from the hybrid
+  stage and accepted (above).
+- `Params` must map a key to the route's parameters. A component shown on a page whose URL the key
+  alone cannot determine (a filtered list, a page keyed by something else) cannot be pushed from
+  that page.

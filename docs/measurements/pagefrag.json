@@ -1,0 +1,185 @@
+{
+  "note": "medians of three runs, one tab, same session; npx playwright test -c e2e --project=hybrid --project=pagefrag measure",
+  "apps": {
+    "hybrid": {
+      "1 one row of ten": {
+        "frames": 1,
+        "requests": 1,
+        "bytes": 703,
+        "queries": 2,
+        "swaps": 2,
+        "set": 0,
+        "server": 0.172,
+        "swapms": 1,
+        "urls": 1
+      },
+      "1 three rows in one frame": {
+        "frames": 1,
+        "requests": 1,
+        "bytes": 1189,
+        "queries": 2,
+        "swaps": 4,
+        "set": 0,
+        "server": 0.185,
+        "swapms": 1.1,
+        "urls": 1
+      },
+      "2 one person, three places": {
+        "frames": 1,
+        "requests": 0,
+        "bytes": 52,
+        "queries": 0,
+        "swaps": 0,
+        "set": 5,
+        "server": 0.021,
+        "swapms": 0.3,
+        "urls": 0
+      },
+      "2 fifty people, four listeners each": {
+        "frames": 1,
+        "requests": 0,
+        "bytes": 783,
+        "queries": 0,
+        "swaps": 0,
+        "set": 200,
+        "server": 0.033,
+        "swapms": 0.3,
+        "urls": 0
+      },
+      "3 neighbour row edited": {
+        "frames": 1,
+        "requests": 0,
+        "bytes": 770,
+        "queries": 1,
+        "swaps": 1,
+        "set": 0,
+        "server": 0.07,
+        "swapms": 0.9,
+        "urls": 0
+      },
+      "6 progress tick": {
+        "frames": 1,
+        "requests": 0,
+        "bytes": 344,
+        "queries": 1,
+        "swaps": 1,
+        "set": 0,
+        "server": 0.047,
+        "swapms": 0.8,
+        "urls": 0
+      },
+      "6 status change": {
+        "frames": 1,
+        "requests": 0,
+        "bytes": 761,
+        "queries": 1,
+        "swaps": 1,
+        "set": 0,
+        "server": 0.055,
+        "swapms": 0.8,
+        "urls": 0
+      },
+      "resync on connect": {
+        "frames": 0,
+        "requests": 0,
+        "bytes": 0,
+        "queries": 0,
+        "swaps": 0,
+        "set": 0,
+        "server": 0,
+        "swapms": 0,
+        "urls": 0
+      }
+    },
+    "pagefrag": {
+      "1 one row of ten": {
+        "frames": 1,
+        "requests": 1,
+        "bytes": 703,
+        "queries": 2,
+        "swaps": 2,
+        "set": 0,
+        "server": 0.166,
+        "swapms": 0.9,
+        "urls": 1
+      },
+      "1 three rows in one frame": {
+        "frames": 1,
+        "requests": 1,
+        "bytes": 1189,
+        "queries": 2,
+        "swaps": 4,
+        "set": 0,
+        "server": 0.134,
+        "swapms": 1,
+        "urls": 1
+      },
+      "2 one person, three places": {
+        "frames": 1,
+        "requests": 0,
+        "bytes": 52,
+        "queries": 0,
+        "swaps": 0,
+        "set": 5,
+        "server": 0.017,
+        "swapms": 0.2,
+        "urls": 0
+      },
+      "2 fifty people, four listeners each": {
+        "frames": 1,
+        "requests": 0,
+        "bytes": 783,
+        "queries": 0,
+        "swaps": 0,
+        "set": 200,
+        "server": 0.032,
+        "swapms": 0.3,
+        "urls": 0
+      },
+      "3 neighbour row edited": {
+        "frames": 1,
+        "requests": 0,
+        "bytes": 770,
+        "queries": 1,
+        "swaps": 1,
+        "set": 0,
+        "server": 0.094,
+        "swapms": 0.8,
+        "urls": 0
+      },
+      "6 progress tick": {
+        "frames": 1,
+        "requests": 0,
+        "bytes": 344,
+        "queries": 1,
+        "swaps": 1,
+        "set": 0,
+        "server": 0.068,
+        "swapms": 0.8,
+        "urls": 0
+      },
+      "6 status change": {
+        "frames": 1,
+        "requests": 0,
+        "bytes": 761,
+        "queries": 1,
+        "swaps": 1,
+        "set": 0,
+        "server": 0.079,
+        "swapms": 1,
+        "urls": 0
+      },
+      "resync on connect": {
+        "frames": 0,
+        "requests": 0,
+        "bytes": 0,
+        "queries": 0,
+        "swaps": 0,
+        "set": 0,
+        "server": 0,
+        "swapms": 0,
+        "urls": 0
+      }
+    }
+  }
+}

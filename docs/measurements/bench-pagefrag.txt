@@ -1,0 +1,38 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/jackielii/live-partials/examples/pagefrag
+cpu: Apple M3 Ultra
+BenchmarkRender/lab:job/page-32         	   92402	     14816 ns/op	   13838 B/op	     162 allocs/op
+BenchmarkRender/lab:job/page-32         	   91766	     12751 ns/op	   13838 B/op	     162 allocs/op
+BenchmarkRender/lab:job/page-32         	   71722	     15574 ns/op	   13838 B/op	     162 allocs/op
+BenchmarkRender/lab:job/page-32         	   95442	     13193 ns/op	   13837 B/op	     162 allocs/op
+BenchmarkRender/lab:job/page-32         	   93966	     13278 ns/op	   13838 B/op	     162 allocs/op
+BenchmarkRender/lab:job/page-32         	   92833	     12849 ns/op	   13838 B/op	     162 allocs/op
+BenchmarkRender/lab:job/page-32         	   80469	     13463 ns/op	   13837 B/op	     162 allocs/op
+BenchmarkRender/lab:job/page-32         	   98877	     13314 ns/op	   13837 B/op	     162 allocs/op
+BenchmarkRender/lab:job/direct-32       	  170143	      8019 ns/op	    9720 B/op	      77 allocs/op
+BenchmarkRender/lab:job/direct-32       	  159037	      8277 ns/op	    9720 B/op	      77 allocs/op
+BenchmarkRender/lab:job/direct-32       	  130555	      8589 ns/op	    9720 B/op	      77 allocs/op
+BenchmarkRender/lab:job/direct-32       	  166425	      8080 ns/op	    9720 B/op	      77 allocs/op
+BenchmarkRender/lab:job/direct-32       	  153759	      7597 ns/op	    9720 B/op	      77 allocs/op
+BenchmarkRender/lab:job/direct-32       	  157485	      8289 ns/op	    9720 B/op	      77 allocs/op
+BenchmarkRender/lab:job/direct-32       	  162259	      7747 ns/op	    9720 B/op	      77 allocs/op
+BenchmarkRender/lab:job/direct-32       	  147186	      7494 ns/op	    9720 B/op	      77 allocs/op
+BenchmarkRender/lab:draft/page-32       	  104815	     15933 ns/op	   13598 B/op	     153 allocs/op
+BenchmarkRender/lab:draft/page-32       	   91122	     12534 ns/op	   13596 B/op	     153 allocs/op
+BenchmarkRender/lab:draft/page-32       	   89378	     13499 ns/op	   13596 B/op	     153 allocs/op
+BenchmarkRender/lab:draft/page-32       	   96933	     14806 ns/op	   13597 B/op	     153 allocs/op
+BenchmarkRender/lab:draft/page-32       	   97824	     14986 ns/op	   13597 B/op	     153 allocs/op
+BenchmarkRender/lab:draft/page-32       	   87754	     17156 ns/op	   13592 B/op	     153 allocs/op
+BenchmarkRender/lab:draft/page-32       	   76237	     21181 ns/op	   13592 B/op	     153 allocs/op
+BenchmarkRender/lab:draft/page-32       	   67012	     16844 ns/op	   13596 B/op	     153 allocs/op
+BenchmarkRender/lab:draft/direct-32     	  146116	      8588 ns/op	    9492 B/op	      70 allocs/op
+BenchmarkRender/lab:draft/direct-32     	  135463	     10376 ns/op	    9491 B/op	      70 allocs/op
+BenchmarkRender/lab:draft/direct-32     	  151822	     10140 ns/op	    9491 B/op	      70 allocs/op
+BenchmarkRender/lab:draft/direct-32     	  177184	     10052 ns/op	    9490 B/op	      70 allocs/op
+BenchmarkRender/lab:draft/direct-32     	  120817	     23443 ns/op	    9478 B/op	      70 allocs/op
+BenchmarkRender/lab:draft/direct-32     	   50252	     21551 ns/op	    9478 B/op	      70 allocs/op
+BenchmarkRender/lab:draft/direct-32     	   65961	     18850 ns/op	    9479 B/op	      70 allocs/op
+BenchmarkRender/lab:draft/direct-32     	   87400	     26513 ns/op	    9476 B/op	      70 allocs/op
+PASS
+ok  	github.com/jackielii/live-partials/examples/pagefrag	44.715s

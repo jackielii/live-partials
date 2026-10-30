@@ -137,10 +137,16 @@ everything else stays signal + pull. Neither needs structpages or gsx changes: f
 a structpages route (`ServeHTTP` page). A stream served from a plain mux route gets no page tree,
 every fragment fails to get its id, and the page silently pulls (logged).
 
+From `page-fragments` a page declares its pushed components (`Live() []live.Fragment`). `hub.Pages`
+is an ordinary structpages middleware that finds them at mount, and the stream renders them
+through the page's own `next` handler as the subscriber. The page needs nothing from structpages
+beyond what any middleware gets: `*PageNode` (its value, method and route) and `next`.
+
 Not proposed: a per-page subscription telling the stream which components the tab shows. It would
 save the renders for subscribers who are in a topic's audience but on another page (measured in
-findings), at the cost of the client describing its composition to the server, which is what this
-design avoids. Narrow audiences are the lever instead.
+findings). It was designed and then dropped. It costs client→server traffic on every navigation,
+per-stream server state, races between a navigation and a frame, and routing to the replica that
+holds the stream. Narrow audiences are the lever instead.
 
 ## 7. structpages: flushing through `Unwrap`-only wrappers (optional, not a bug)
 
@@ -155,3 +161,18 @@ implement `http.Flusher`.
 Optional nicety, not needed by the lab: `buffered.FlushError` could call
 `http.NewResponseController(w.ResponseWriter).Flush()` instead of asserting `http.Flusher`, so
 wrappers that follow Go 1.20's `Unwrap` convention without `Flush` would flush too.
+
+## 8. structpages: URL parameters for a request a middleware makes (small, optional)
+
+A page-declared fragment is rendered by calling the page's `next` with a request built in process.
+`withPcCtx` and `extractURLParams` run before the global middlewares, so they never see that request.
+The page tree comes from the stream request's context, so `key`, `id` and `url` with arguments work.
+`r.PathValue` works too: `live` sets the path values from `Fragment.Params`. What does not work is
+the `url` filter's auto-fill of the current page's own parameters (`jobPage{} |> url` on
+`/jobs/{jobId}`), which reads the unexported `urlParams` context value. A component rendered by a
+push on a page with path parameters must pass them explicitly.
+
+Proposed: when `urlParams` is absent from the context, `URLFor` could fill the parameters from the
+current request's path values. Alternatively, structpages could export
+`structpages.WithURLParams(ctx, map[string]string)`. Either one closes the gap without new
+middleware API. Not needed by the lab: no pushed component links to its own page.
