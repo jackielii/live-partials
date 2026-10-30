@@ -691,9 +691,10 @@ one at a time with narrow audiences.
   stream's context; from a plain mux route there is no page tree, every fragment fails, and the page
   silently falls back to pull (logged as a warning). Mounting it as a page also brought the next
   point.
-- **structpages buffers a `ServeHTTP` page's response and flushes only an `http.Flusher`.** The lab's
-  timing middleware wraps the writer with only `Unwrap`, so the stream never reached the client until
-  `timedWriter` got a `Flush` method (proposals §7).
+- **A host's writer wrapper must implement `http.Flusher` under a streaming route.** structpages
+  buffers a page's response by design, to catch and render errors, and flushes through to an
+  `http.Flusher` when the handler calls `http.NewResponseController(w).Flush()`. The lab's
+  `timedWriter` had only `Unwrap`, so the stream stalled until it got a `Flush` (proposals §7).
 - **Push and pull paths are two call sites.** The Props branch and the registration must load the
   same data with the same checks; a shared loader keeps them honest, but nothing enforces it.
 - **The publisher of a value knows the value.** Presence's write site reads the new value

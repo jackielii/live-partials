@@ -142,14 +142,16 @@ save the renders for subscribers who are in a topic's audience but on another pa
 findings), at the cost of the client describing its composition to the server, which is what this
 design avoids. Narrow audiences are the lever instead.
 
-## 7. structpages: flush through the writer chain
+## 7. structpages: flushing through `Unwrap`-only wrappers (optional, not a bug)
 
-structpages' buffered writer (`buffered.FlushError`) flushes the writer under it only when that is
-an `http.Flusher`. A host middleware that wraps the `ResponseWriter` and offers only `Unwrap` (as
-the lab's `timedWriter` did, which is what `http.ResponseController` asks for) makes an SSE stream
-served by a structpages `ServeHTTP` route buffer forever: the client never sees the headers. The
-hybrid works around it by giving `timedWriter` a `Flush`. Proposal: `buffered.FlushError` calls
-`http.NewResponseController(w.ResponseWriter).Flush()`, which handles both. Repro: a `ServeHTTP`
-page that writes and calls `http.NewResponseController(w).Flush()`, mounted behind a middleware
-whose writer embeds `http.ResponseWriter` and adds only `Unwrap`; the client blocks waiting for the
-response headers.
+structpages buffers a page's response by design, so it can catch an error and render it properly,
+and it supports flushing: a handler streams by calling `http.NewResponseController(w).Flush()`.
+The hybrid's stream stalled because of the lab, not structpages: the lab's `timedWriter` wrapped the
+`ResponseWriter` with only an `Unwrap` method and no `Flush`, and structpages' buffered writer
+passes a flush on to the writer below it when that writer is an `http.Flusher`. Giving the wrapper a
+`Flush` fixed it, and is the right fix: a middleware writer that sits under a streaming route should
+implement `http.Flusher`.
+
+Optional nicety, not needed by the lab: `buffered.FlushError` could call
+`http.NewResponseController(w.ResponseWriter).Flush()` instead of asserting `http.Flusher`, so
+wrappers that follow Go 1.20's `Unwrap` convention without `Flush` would flush too.
